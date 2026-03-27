@@ -17,10 +17,7 @@ from datetime import datetime
 import asyncio
 import replicate
 
-# API Keys  
-REMOVE_BG_API_KEY = os.getenv("REMOVE_BG_API_KEY", "QjqEhcky65xnx21LTont1qNc")
-REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN", "")
-IMGBB_API_KEY = os.getenv("IMGBB_API_KEY", "")
+from config import REMOVE_BG_API_KEY, REPLICATE_API_TOKEN, IMGBB_API_KEY
 
 replicate_client = replicate.Client(api_token=REPLICATE_API_TOKEN) if REPLICATE_API_TOKEN else None
 
@@ -325,7 +322,7 @@ async def upload_avatar_image(
 
 # ── Virtual Try-On with Replicate API ─────
 
-class TryOnRequest(BaseModel):
+class VirtualTryOnRequest(BaseModel):
     avatar_image_base64: str    # Base64 encoded avatar/body image
     top_image_base64: Optional[str] = None     # Base64 encoded top clothing
     bottom_image_base64: Optional[str] = None  # Base64 encoded bottom clothing  
@@ -338,34 +335,51 @@ class TryOnRequest(BaseModel):
 @app.post("/remove-background")
 async def remove_background_endpoint(file: UploadFile = File(...)):
     """Remove background from clothing image using remove.bg API."""
+    if not REMOVE_BG_API_KEY:
+        raise HTTPException(status_code=500, detail="REMOVE_BG_API_KEY не задан. Проверьте .env или config.py")
+
     try:
         contents = await file.read()
-        
+
+        # file.content_type иногда может быть None, тогда используем jpeg
+        content_type = file.content_type or "image/jpeg"
+        file_name = file.filename or "upload.png"
+
         # Call remove.bg API
         response = requests.post(
             'https://api.remove.bg/v1.0/removebg',
-            files={'image_file': contents},
+            files={
+                'image_file': (file_name, contents, content_type),
+            },
             data={'size': 'auto'},
             headers={'X-Api-Key': REMOVE_BG_API_KEY},
+            timeout=90,
         )
-        
+
         if response.status_code == 200:
-            # Convert to base64 for frontend
             removed_bg_base64 = base64.b64encode(response.content).decode('utf-8')
             return {
                 "status": "success",
                 "removed_bg": f"data:image/png;base64,{removed_bg_base64}",
                 "size_kb": len(response.content) / 1024,
             }
-        else:
-            raise HTTPException(status_code=500, detail=f"Remove.bg error: {response.text}")
-            
+
+        detail = f"Remove.bg error: {response.status_code} - {response.text}"
+        print(detail)
+        raise HTTPException(status_code=502, detail=detail)
+
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="remove.bg timeout, повторите запрос позже")
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=502, detail=f"Ошибка обращения к remove.bg: {e}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        error_msg = f"remove-background failed: {e}"
+        print(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 @app.post("/generate-tryon")
-async def generate_tryon(request: TryOnRequest, user=Depends(get_current_user)):
+async def generate_tryon(request: VirtualTryOnRequest, user=Depends(get_current_user)):
     """
     Generate virtual try-on using Replicate flux-2-pro model with prompt-based generation.
     """
