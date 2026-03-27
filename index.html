@@ -1690,9 +1690,14 @@
                     </button>
                   </div>
                 ) : (
-                  <button className="upload-btn" onClick={() => document.getElementById('avatar-input').click()} style={{marginBottom: '16px'}}>
-                    📸 Upload Body Photo
-                  </button>
+                  <>
+                    <button className="upload-btn" onClick={() => document.getElementById('avatar-input').click()} style={{marginBottom: '8px'}}>
+                      📸 Upload Body Photo
+                    </button>
+                    <div style={{fontSize: '11px', color: 'var(--cream-dim)', marginBottom: '16px', lineHeight: '1.5', padding: '8px', background: 'var(--surface2)', borderRadius: '6px', border: '1px solid var(--border)'}}>
+                      💡 Use a photo in <strong style={{color: 'var(--gold)'}}>regular clothing</strong> (t-shirt, jeans). Photos in underwear or swimwear will be blocked by the AI model.
+                    </div>
+                  </>
                 )}
                 <input
                   id="avatar-input"
