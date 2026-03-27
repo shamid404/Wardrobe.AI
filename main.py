@@ -1,7 +1,7 @@
 
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -9,7 +9,20 @@ from typing import Optional, List
 import uuid
 import time
 import random
+import base64
+import requests
+import os
+import json
 from datetime import datetime
+import asyncio
+import replicate
+
+# API Keys  
+REMOVE_BG_API_KEY = os.getenv("REMOVE_BG_API_KEY", "QjqEhcky65xnx21LTont1qNc")
+REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN", "")
+IMGBB_API_KEY = os.getenv("IMGBB_API_KEY", "")
+
+replicate_client = replicate.Client(api_token=REPLICATE_API_TOKEN) if REPLICATE_API_TOKEN else None
 
 app = FastAPI(
     title="Wardrobe.AI API",
@@ -89,8 +102,114 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     return USERS_DB["user_demo"]
 
 # ─────────────────────────────────────────
-# Mock AI inference
+# Replicate AI Integration
 # ─────────────────────────────────────────
+
+async def generate_virtual_tryon(avatar_url: str, top_url: Optional[str] = None, bottom_url: Optional[str] = None, outer_url: Optional[str] = None, top_name: Optional[str] = None, bottom_name: Optional[str] = None, outer_name: Optional[str] = None) -> dict:
+    """
+    Generate virtual try-on using Replicate flux-2-pro model with prompt-based generation.
+    """
+    try:
+        # Build prompt based on selected clothing
+        prompt_parts = ["A person"]
+
+        if top_name and top_url:
+            prompt_parts.append(f"wearing {top_name} on upper body")
+        if bottom_name and bottom_url:
+            prompt_parts.append(f"wearing {bottom_name} on lower body")
+        if outer_name and outer_url:
+            prompt_parts.append(f"wearing {outer_name} as outerwear")
+
+        prompt = ", ".join(prompt_parts) + ", on neutral background, photorealistic, high quality"
+
+        # Prepare input images (avatar + clothing items)
+        input_images = [avatar_url]
+        if top_url:
+            input_images.append(top_url)
+        if bottom_url:
+            input_images.append(bottom_url)
+        if outer_url:
+            input_images.append(outer_url)
+
+        if replicate_client is None:
+            raise RuntimeError("REPLICATE_API_TOKEN не задан. Укажите переменную окружения REPLICATE_API_TOKEN.")
+
+        # Use Replicate Python client
+        output = replicate_client.run(
+            "black-forest-labs/flux-2-pro",
+            input={
+                "prompt": prompt,
+                "input_images": input_images,
+                "guidance_scale": 7.5,
+                "num_inference_steps": 20,
+                "aspect_ratio": "1:1",
+                "output_format": "jpg",
+                "safety_tolerance": 2,
+            },
+        )
+
+        # Get the result URL
+        if isinstance(output, list) and len(output) > 0:
+            result_url = output[0]
+        else:
+            result_url = str(output)
+
+        return {
+            "success": True,
+            "result_url": result_url,
+            "prediction_id": f"flux_{uuid.uuid4().hex[:10]}",
+            "prompt": prompt
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def upload_to_imgbb(image_base64: str) -> str:
+    """
+    Upload image to imgbb for temporary hosting (needed for Replicate).
+    """
+    try:
+        # Remove data URL prefix if present
+        if image_base64.startswith('data:image'):
+            image_base64 = image_base64.split(',')[1]
+        
+        # Decode base64
+        image_data = base64.b64decode(image_base64)
+        
+        # Upload to imgbb (free image hosting)
+        imgbb_url = "https://api.imgbb.com/1/upload"
+        if not IMGBB_API_KEY:
+            raise HTTPException(
+                status_code=400,
+                detail="IMGBB_API_KEY не задан. Replicate требует публичные URL для input_images.",
+            )
+        
+        files = {'image': ('clothing.jpg', image_data, 'image/jpeg')}
+        data = {'key': IMGBB_API_KEY}
+        
+        response = requests.post(imgbb_url, files=files, data=data)
+        response.raise_for_status()
+        
+        result = response.json()
+        return result['data']['url']
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Return explicit error (data: URL обычно не подходит для Replicate)
+        raise HTTPException(status_code=502, detail=f"Не удалось загрузить изображение в imgbb: {e}") from e
+
+
+def url_to_data_url(image_url: str) -> str:
+    r = requests.get(image_url, timeout=60)
+    r.raise_for_status()
+    content_type = r.headers.get("content-type", "image/jpeg")
+    b64 = base64.b64encode(r.content).decode("utf-8")
+    return f"data:{content_type};base64,{b64}"
 def mock_ai_analysis(item: dict) -> AnalysisResult:
     colors = ["Warm beige", "Deep navy", "Ivory white", "Charcoal grey", "Terracotta"]
     fabrics = ["Cotton blend", "Pure silk", "Linen", "Wool", "Polyester mix"]
@@ -202,6 +321,104 @@ async def upload_avatar_image(
         "storage_url": f"https://storage.wardrobe.ai/avatars/{user['id']}.jpg",
         "encryption": "AES-256",
     }
+
+
+# ── Virtual Try-On with Replicate API ─────
+
+class TryOnRequest(BaseModel):
+    avatar_image_base64: str    # Base64 encoded avatar/body image
+    top_image_base64: Optional[str] = None     # Base64 encoded top clothing
+    bottom_image_base64: Optional[str] = None  # Base64 encoded bottom clothing  
+    outer_image_base64: Optional[str] = None   # Base64 encoded outer clothing
+    top_name: Optional[str] = None
+    bottom_name: Optional[str] = None
+    outer_name: Optional[str] = None
+
+
+@app.post("/remove-background")
+async def remove_background_endpoint(file: UploadFile = File(...)):
+    """Remove background from clothing image using remove.bg API."""
+    try:
+        contents = await file.read()
+        
+        # Call remove.bg API
+        response = requests.post(
+            'https://api.remove.bg/v1.0/removebg',
+            files={'image_file': contents},
+            data={'size': 'auto'},
+            headers={'X-Api-Key': REMOVE_BG_API_KEY},
+        )
+        
+        if response.status_code == 200:
+            # Convert to base64 for frontend
+            removed_bg_base64 = base64.b64encode(response.content).decode('utf-8')
+            return {
+                "status": "success",
+                "removed_bg": f"data:image/png;base64,{removed_bg_base64}",
+                "size_kb": len(response.content) / 1024,
+            }
+        else:
+            raise HTTPException(status_code=500, detail=f"Remove.bg error: {response.text}")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/generate-tryon")
+async def generate_tryon(request: TryOnRequest, user=Depends(get_current_user)):
+    """
+    Generate virtual try-on using Replicate flux-2-pro model with prompt-based generation.
+    """
+    try:
+        # Upload avatar image
+        avatar_url = upload_to_imgbb(request.avatar_image_base64)
+        
+        # Upload clothing images if provided
+        top_url = upload_to_imgbb(request.top_image_base64) if request.top_image_base64 else None
+        bottom_url = upload_to_imgbb(request.bottom_image_base64) if request.bottom_image_base64 else None
+        outer_url = upload_to_imgbb(request.outer_image_base64) if request.outer_image_base64 else None
+        
+        # Generate virtual try-on
+        result = await generate_virtual_tryon(
+            avatar_url=avatar_url,
+            top_url=top_url,
+            bottom_url=bottom_url,
+            outer_url=outer_url,
+            top_name=request.top_name,
+            bottom_name=request.bottom_name,
+            outer_name=request.outer_name
+        )
+        
+        if result["success"]:
+            job_id = f"tryon_{uuid.uuid4().hex[:10]}"
+            
+            preview_data_url = None
+            try:
+                if result.get("result_url", "").startswith("http"):
+                    preview_data_url = url_to_data_url(result["result_url"])
+            except Exception:
+                preview_data_url = None
+
+            tryon_result = {
+                "job_id": job_id,
+                "status": "completed",
+                "preview_url": result["result_url"],
+                "preview_image_data_url": preview_data_url,
+                "prompt": result["prompt"],
+                "fit_score": random.randint(70, 95),
+                "style_score": random.randint(75, 95),
+                "confidence": random.randint(80, 98),
+                "prediction_id": result["prediction_id"]
+            }
+            
+            return tryon_result
+        else:
+            raise HTTPException(status_code=502, detail={"message": "AI generation failed", "error": result.get("error")})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── AI Try-On ─────────────────────────────

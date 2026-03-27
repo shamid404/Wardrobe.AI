@@ -232,6 +232,25 @@
     .card-item.selected-bottom .card-check { background: var(--accent); }
     .card-item.selected-outer  .card-check { background: var(--success); }
 
+    .card-delete {
+      position: absolute;
+      bottom: 5px; right: 5px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--error);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px;
+      color: var(--bg);
+      font-weight: 700;
+      opacity: 0;
+      transform: scale(0.5);
+      transition: opacity 0.2s, transform 0.2s;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .card-item:hover .card-delete { opacity: 1; transform: scale(1); }
+    .card-delete:hover { filter: brightness(1.15); }
+
     .card-thumb {
       width: 100%;
       height: 90px;
@@ -433,6 +452,11 @@
       color: var(--text-muted);
     }
     .btn-ghost:hover { border-color: var(--gold-dim); color: var(--cream-dim); }
+    .btn-ghost:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      border-color: var(--border2);
+    }
     .btn-primary {
       background: linear-gradient(135deg, var(--gold-dim), var(--gold));
       color: var(--bg);
@@ -1256,120 +1280,46 @@
     async function removeBackground(imageDataUrl, onStep) {
       onStep('detect');
 
-      // Convert dataURL to base64
-      const base64 = imageDataUrl.split(',')[1];
-      const mimeType = imageDataUrl.split(';')[0].split(':')[1];
-
-      // Ask Claude Vision to describe clothing bounds and bg color
-      let claudeResult = null;
       try {
-        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        // Convert dataURL to Blob
+        const response = await fetch(imageDataUrl);
+        const blob = await response.blob();
+
+        // Create FormData and upload to backend
+        const formData = new FormData();
+        formData.append('file', blob, 'clothing.jpg');
+
+        onStep('segment');
+
+        // Call backend remove-background endpoint
+        const removeRes = await fetch('/remove-background', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 400,
-            messages: [{
-              role: 'user',
-              content: [
-                {
-                  type: 'image',
-                  source: { type: 'base64', media_type: mimeType, data: base64 }
-                },
-                {
-                  type: 'text',
-                  text: `Analyze this clothing image. Respond ONLY with a JSON object, no markdown:
-{
-  "category": "top" | "bottom" | "outer",
-  "garmentName": "short descriptive name",
-  "dominantGarmentColor": "#rrggbb hex",
-  "bgIsWhite": true/false,
-  "bgColor": "#rrggbb approximate background color",
-  "garmentBounds": { "xPct": 0-100, "yPct": 0-100, "wPct": 0-100, "hPct": 0-100 }
-}`
-                }
-              ]
-            }]
-          })
+          body: formData
         });
-        const data = await resp.json();
-        const text = data.content?.map(b => b.text || '').join('');
-        const clean = text.replace(/```json|```/g, '').trim();
-        claudeResult = JSON.parse(clean);
-      } catch(e) {
-        // Fallback if API fails
-        claudeResult = {
-          category: 'top', garmentName: 'Clothing Item',
-          dominantGarmentColor: '#c9a84c', bgIsWhite: true,
-          bgColor: '#ffffff',
-          garmentBounds: { xPct: 10, yPct: 5, wPct: 80, hPct: 90 }
+
+        if (!removeRes.ok) {
+          throw new Error(`Remove BG failed: ${removeRes.statusText}`);
+        }
+
+        const result = await removeRes.json();
+
+        onStep('done');
+
+        return {
+          removedDataUrl: result.removed_bg,
+          meta: {
+            category: 'top', // Default category
+            garmentName: 'Clothing Item'
+          }
+        };
+      } catch (err) {
+        console.error('Background removal error:', err);
+        // Fallback: return original image
+        return {
+          removedDataUrl: imageDataUrl,
+          meta: { category: 'top', garmentName: 'Clothing Item' }
         };
       }
-
-      onStep('segment');
-
-      // Draw on canvas and remove background
-      const removedDataUrl = await canvasRemoveBg(imageDataUrl, claudeResult);
-
-      onStep('done');
-      return { removedDataUrl, meta: claudeResult };
-    }
-
-    function canvasRemoveBg(imageDataUrl, meta) {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width  = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-
-          const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-          // Parse target bg color
-          const bgHex = meta.bgColor || '#ffffff';
-          const bgR = parseInt(bgHex.slice(1,3), 16);
-          const bgG = parseInt(bgHex.slice(3,5), 16);
-          const bgB = parseInt(bgHex.slice(5,7), 16);
-
-          // Garment bounding box in pixels
-          const b = meta.garmentBounds;
-          const gx1 = Math.floor((b.xPct / 100) * width);
-          const gy1 = Math.floor((b.yPct / 100) * height);
-          const gx2 = Math.floor(((b.xPct + b.wPct) / 100) * width);
-          const gy2 = Math.floor(((b.yPct + b.hPct) / 100) * height);
-
-          const threshold = meta.bgIsWhite ? 40 : 55;
-
-          for (let i = 0; i < data.length; i += 4) {
-            const px = (i / 4) % width;
-            const py = Math.floor((i / 4) / width);
-
-            const r = data[i], g = data[i+1], b2 = data[i+2];
-
-            // Outside garment bounding box → aggressively remove
-            const inBounds = px >= gx1 && px <= gx2 && py >= gy1 && py <= gy2;
-
-            const distBg = Math.sqrt(
-              (r - bgR)**2 + (g - bgG)**2 + (b2 - bgB)**2
-            );
-
-            // Pixels close to bg color → transparent
-            const thr = inBounds ? threshold : threshold * 0.6;
-            if (distBg < thr) {
-              data[i + 3] = 0; // transparent
-            } else if (!inBounds) {
-              // Outside bounds but not bg color → semi-transparent edge
-              data[i + 3] = Math.max(0, data[i + 3] - 80);
-            }
-          }
-
-          ctx.putImageData(new ImageData(data, width, height), 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-        };
-        img.src = imageDataUrl;
-      });
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -1397,13 +1347,85 @@
     // ─────────────────────────────────────────────────────────────
     function App() {
       const [wardrobe, setWardrobe] = useState(INITIAL_WARDROBE);
-      const [selected, setSelected] = useState({ top: null, outer: null, bottom: null });
+      const [selected, setSelected] = useState({ top: null, outer: null, bottom: null, head: null });
       const [uploadModal, setUploadModal] = useState(false);
       const [toast, setToast] = useState(null);
+      const [tryOnState, setTryOnState] = useState(null); // null | 'loading' | 'done'
+      const [showRightPanel, setShowRightPanel] = useState(true);
+      const fileInputRef = useRef(null);
+      const [previewImage, setPreviewImage] = useState(null);
+      const [removedBgImage, setRemovedBgImage] = useState(null);
+      const [processingImage, setProcessingImage] = useState(false);
+      const [itemForm, setItemForm] = useState({ name: '', category: 'top', brand: '', size: 'M', emoji: '👕' });
+      const [avatarImage, setAvatarImage] = useState(null); // User's body/avatar image
+      const [tryOnResultImage, setTryOnResultImage] = useState(null); // dataURL or URL
 
       const showToast = (msg) => {
         setToast(msg);
         setTimeout(() => setToast(null), 3000);
+      };
+
+      const handleFileUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+          const dataUrl = evt.target?.result;
+          setPreviewImage(dataUrl);
+          setProcessingImage(true);
+          showToast('🔄 Processing image...');
+          
+          try {
+            // Remove background using canvas
+            const { removedDataUrl, meta } = await removeBackground(dataUrl, (step) => {
+              console.log('Background removal step:', step);
+            });
+            
+            setRemovedBgImage(removedDataUrl);
+            // Auto-detect category if available
+            if (meta?.category) {
+              setItemForm(prev => ({...prev, category: meta.category}));
+            }
+            showToast('✓ Image processed! Fill in details and add.');
+            setProcessingImage(false);
+          } catch (err) {
+            console.error('Error processing image:', err);
+            showToast('Error processing image');
+            setProcessingImage(false);
+          }
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const handleAddItem = () => {
+        if (!previewImage) {
+          showToast('Select image first');
+          return;
+        }
+        if (!itemForm.name.trim()) {
+          showToast('Enter item name');
+          return;
+        }
+
+        const newItem = {
+          id: Math.random(),
+          name: itemForm.name,
+          category: itemForm.category,
+          emoji: itemForm.emoji,
+          brand: itemForm.brand,
+          size: itemForm.size,
+          photo: previewImage,
+          removedBg: removedBgImage,
+        };
+        
+        setWardrobe([...wardrobe, newItem]);
+        showToast('✓ Item added!');
+        setUploadModal(false);
+        setPreviewImage(null);
+        setRemovedBgImage(null);
+        setProcessingImage(false);
+        setItemForm({ name: '', category: 'top', brand: '', size: 'M', emoji: '👕' });
       };
 
       const toggleItem = (item) => {
@@ -1413,7 +1435,88 @@
         }));
       };
 
+      const deleteItem = (itemId) => {
+        setWardrobe(wardrobe.filter(item => item.id !== itemId));
+        // If deleted item was selected, deselect it
+        setSelected(prev => {
+          const updated = {...prev};
+          Object.keys(updated).forEach(cat => {
+            if (updated[cat]?.id === itemId) updated[cat] = null;
+          });
+          return updated;
+        });
+        showToast('✓ Item deleted');
+      };
+
       const selectedOutfit = Object.values(selected).filter(Boolean);
+
+      const generateTryOn = async () => {
+        if (!avatarImage) {
+          showToast('Upload your body photo first');
+          return;
+        }
+        if (!selected.top && !selected.bottom && !selected.outer) {
+          showToast('Select items first');
+          return;
+        }
+
+        setTryOnState('loading');
+        setTryOnResultImage(null);
+        showToast('🔄 Generating try-on...');
+
+        try {
+          // Prepare payload for API
+          const payload = {
+            avatar_image_base64: avatarImage
+          };
+
+          // Add selected clothing items
+          if (selected.top) {
+            payload.top_image_base64 = selected.top.removedBg || selected.top.photo;
+            payload.top_name = selected.top.name;
+          }
+          if (selected.bottom) {
+            payload.bottom_image_base64 = selected.bottom.removedBg || selected.bottom.photo;
+            payload.bottom_name = selected.bottom.name;
+          }
+          if (selected.outer) {
+            payload.outer_image_base64 = selected.outer.removedBg || selected.outer.photo;
+            payload.outer_name = selected.outer.name;
+          }
+
+          // Send request to backend
+          const response = await fetch('http://localhost:8000/generate-tryon', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const result = await response.json();
+
+          if (result.preview_url) {
+            // Display the result
+            setTryOnState('done');
+            showToast('✓ Try-on generated!');
+
+            // Prefer base64 dataURL when available (avoids CORS/hotlink issues)
+            setTryOnResultImage(result.preview_image_data_url || result.preview_url);
+          } else {
+            throw new Error(result.error || 'Failed to generate try-on');
+          }
+
+        } catch (err) {
+          console.error('Error generating try-on:', err);
+          showToast('❌ Error generating try-on');
+          setTryOnState(null);
+          setTryOnResultImage(null);
+        }
+      };
 
       return (
         <div className="app">
@@ -1449,12 +1552,22 @@
                         key={item.id}
                         className={`card-item ${selected[cat.key]?.id === item.id ? cat.selectedClass : ''}`}
                         onClick={() => toggleItem(item)}
+                        title={item.name}
                       >
                         <div className="card-check">✓</div>
-                        <div className="card-thumb">{item.emoji}</div>
+                        <div className="card-delete" onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}>✕</div>
+                        <div className="card-thumb">
+                          {item.removedBg ? (
+                            <img src={item.removedBg} style={{width: '100%', height: '100%', objectFit: 'contain'}} />
+                          ) : item.photo ? (
+                            <img src={item.photo} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                          ) : (
+                            item.emoji
+                          )}
+                        </div>
                         <div className="card-body">
                           <div className="card-name">{item.name}</div>
-                          <div className="card-meta">{item.brand}</div>
+                          <div className="card-meta">{item.brand || 'Custom'}</div>
                         </div>
                       </div>
                     ))}
@@ -1474,15 +1587,13 @@
                 <div className="outfit-summary-items">
                   {selectedOutfit.map(item => (
                     <div key={item.id} className={`outfit-tag ${item.category === 'top' ? 'tag-top' : item.category === 'bottom' ? 'tag-bottom' : 'tag-outer'}`}>
-                      {item.emoji} {item.name}
+                      {item.emoji} {item.name?.substring(0, 10)}
                       <span className="tag-remove" onClick={() => setSelected(p => ({...p, [item.category]: null}))}>×</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-
-            <button className="upload-btn" onClick={() => setUploadModal(true)}>📸 Upload Photo</button>
           </div>
 
           {/* MAIN CANVAS */}
@@ -1490,8 +1601,13 @@
             <div className="main-toolbar">
               <div className="toolbar-title">Virtual Try-On Studio</div>
               <div className="toolbar-actions">
-                <button className="btn btn-ghost" onClick={() => setSelected({ top: null, outer: null, bottom: null })}>Clear</button>
-                <button className="btn btn-primary" disabled={selectedOutfit.length === 0}>Generate Try-On</button>
+                <button className="btn btn-ghost" onClick={() => setSelected({ top: null, outer: null, bottom: null, head: null })}>Clear</button>
+                <button className="btn btn-primary" disabled={selectedOutfit.length === 0} onClick={generateTryOn}>
+                  {tryOnState === 'loading' ? '🔄 Generating...' : 'Generate Try-On'}
+                </button>
+                <button className="btn btn-ghost" onClick={() => setShowRightPanel(!showRightPanel)} title={showRightPanel ? 'Hide Panel' : 'Show Panel'}>
+                  {showRightPanel ? '▶' : '◀'}
+                </button>
               </div>
             </div>
             <div className="canvas-area">
@@ -1503,17 +1619,48 @@
                 </div>
               ) : (
                 <div className="avatar-stage">
-                  <div className="avatar-frame">
+                  <div className={`avatar-frame ${tryOnState === 'loading' ? 'scanning' : ''}`}>
+                    {tryOnState === 'loading' && <div className="scan-line"></div>}
                     <div className="avatar-body">
-                      <div className="avatar-head"></div>
+                      <div className="avatar-head">
+                        {selected.head && (
+                          <div className="clothing-overlay visible" style={{fontSize: '50px'}}>
+                            {selected.head.emoji}
+                          </div>
+                        )}
+                      </div>
                       <div className="avatar-torso">
-                        {selected.top && <div className="clothing-overlay visible">{selected.top.emoji}</div>}
-                        {selected.outer && <div className="clothing-overlay visible" style={{fontSize: '32px'}}>{selected.outer.emoji}</div>}
+                        {selected.top && (
+                          <div className="avatar-top-img visible">
+                            {selected.top.removedBg ? (
+                              <img src={selected.top.removedBg} style={{height: '100%', objectFit: 'contain'}} />
+                            ) : (
+                              <div style={{fontSize: '40px'}}>{selected.top.emoji}</div>
+                            )}
+                          </div>
+                        )}
+                        {selected.outer && (
+                          <div className="avatar-outer-img visible">
+                            {selected.outer.removedBg ? (
+                              <img src={selected.outer.removedBg} style={{height: '100%', objectFit: 'contain'}} />
+                            ) : (
+                              <div style={{fontSize: '38px'}}>{selected.outer.emoji}</div>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="avatar-legs">
                         <div className="avatar-leg"></div>
                         <div className="avatar-leg"></div>
-                        {selected.bottom && <div className="clothing-overlay visible" style={{position: 'absolute', bottom: '10px'}}>{selected.bottom.emoji}</div>}
+                        {selected.bottom && (
+                          <div className="avatar-bottom-img visible">
+                            {selected.bottom.removedBg ? (
+                              <img src={selected.bottom.removedBg} style={{height: '100%', objectFit: 'contain'}} />
+                            ) : (
+                              <div style={{fontSize: '32px', position: 'absolute', bottom: '5px'}}>{selected.bottom.emoji}</div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1521,7 +1668,7 @@
                     {selectedOutfit.map(item => (
                       <div key={item.id} className="outfit-chip">
                         <div className="chip-dot"></div>
-                        {item.name}
+                        {item.name?.substring(0, 12)}
                       </div>
                     ))}
                   </div>
@@ -1531,38 +1678,206 @@
           </div>
 
           {/* SIDEBAR RIGHT */}
-          <div className="sidebar-right">
-            <div>
-              <div className="panel-title">Upload Clothing</div>
-              <div className="upload-zone">
-                <input type="file" accept="image/*" />
-                <div className="upload-icon">📸</div>
-                <div className="upload-text">
-                  Drag photo or <strong>click</strong>
+          {showRightPanel && (
+            <div className="sidebar-right">
+              <div>
+                <div className="panel-title">Your Body Photo</div>
+                {avatarImage ? (
+                  <div style={{marginBottom: '16px'}}>
+                    <img src={avatarImage} style={{width: '100%', borderRadius: '8px', marginBottom: '8px'}} />
+                    <button className="btn btn-ghost" onClick={() => setAvatarImage(null)} style={{width: '100%'}}>
+                      Remove Photo
+                    </button>
+                  </div>
+                ) : (
+                  <button className="upload-btn" onClick={() => document.getElementById('avatar-input').click()} style={{marginBottom: '16px'}}>
+                    📸 Upload Body Photo
+                  </button>
+                )}
+                <input
+                  id="avatar-input"
+                  type="file"
+                  accept="image/*"
+                  style={{display: 'none'}}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (e) => setAvatarImage(e.target.result);
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+              </div>
+
+              <div>
+                <div className="panel-title">Upload Clothing</div>
+                <button className="upload-btn" onClick={() => setUploadModal(true)} style={{marginBottom: '16px'}}>📸 Upload Photo</button>
+              </div>
+
+              {selectedOutfit.length > 0 && (
+                <div>
+                  <div className="panel-title">Using Items</div>
+                  <div className="analysis-card">
+                    <div className="analysis-row">
+                      <span className="analysis-key">Top</span>
+                      <span className="analysis-val">{selected.top?.name?.substring(0, 12) || '—'}</span>
+                    </div>
+                    <div className="analysis-row">
+                      <span className="analysis-key">Bottom</span>
+                      <span className="analysis-val">{selected.bottom?.name?.substring(0, 12) || '—'}</span>
+                    </div>
+                    {selected.outer && (
+                      <div className="analysis-row">
+                        <span className="analysis-key">Outer</span>
+                        <span className="analysis-val">{selected.outer?.name?.substring(0, 12)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {tryOnState === 'done' && (
+                <div>
+                  <div className="panel-title">Try-On Result</div>
+                  <div className="tryon-result">
+                    <div className="tryon-header">
+                      <div className="tryon-title">AI Generated</div>
+                      <div className="status-dot dot-done"></div>
+                    </div>
+                    <div className="tryon-body">
+                      <div className="tryon-preview">
+                        {tryOnResultImage ? (
+                          <img
+                            src={tryOnResultImage}
+                            alt="Try-on result"
+                            style={{width: '100%', height: '100%', objectFit: 'cover'}}
+                          />
+                        ) : (
+                          <div style={{fontSize: '32px', textAlign: 'center'}}>
+                            {selected.top?.emoji} {selected.bottom?.emoji} {selected.outer?.emoji}
+                          </div>
+                        )}
+                      </div>
+                      <div className="score-row">
+                        <span className="score-label">Fit Score</span>
+                        <div className="score-bar">
+                          <div className="score-fill" style={{width: '85%'}}></div>
+                        </div>
+                        <span className="score-num">85</span>
+                      </div>
+                      <div className="score-row">
+                        <span className="score-label">Style Score</span>
+                        <div className="score-bar">
+                          <div className="score-fill" style={{width: '92%'}}></div>
+                        </div>
+                        <span className="score-num">92</span>
+                      </div>
+                      <div className="score-row">
+                        <span className="score-label">Confidence</span>
+                        <div className="score-bar">
+                          <div className="score-fill" style={{width: '88%'}}></div>
+                        </div>
+                        <span className="score-num">88</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button className="btn btn-ghost" onClick={() => setTryOnState(null)} style={{width: '100%', marginTop: '10px'}}>
+                    Clear Result
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* UPLOAD MODAL */}
+          {uploadModal && (
+            <div className="modal-bg" onClick={() => {
+              if (!processingImage) setUploadModal(false);
+            }}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-title">Add Clothing Item</div>
+                <div className="modal-sub">Upload a photo and fill in details</div>
+                
+                <div className="photo-drop">
+                  <input type="file" accept="image/*" onChange={handleFileUpload} />
+                  {previewImage ? (
+                    <div className="photo-preview-wrap">
+                      <img src={previewImage} className="photo-preview-img" />
+                      {processingImage && (
+                        <div style={{position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'}}>
+                          <div className="spinner"></div>
+                          <div style={{fontSize: '11px', color: 'var(--gold)'}}>Processing...</div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="photo-drop-placeholder">
+                      <div className="pd-icon">📸</div>
+                      <div className="pd-text">Drop photo here or <strong>click</strong></div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-field">
+                  <label className="form-label">Item Name</label>
+                  <input
+                    className="form-input"
+                    placeholder="e.g., Blue Silk Blouse"
+                    value={itemForm.name}
+                    onChange={(e) => setItemForm({...itemForm, name: e.target.value})}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label className="form-label">Category</label>
+                  <select
+                    className="form-select"
+                    value={itemForm.category}
+                    onChange={(e) => setItemForm({...itemForm, category: e.target.value})}
+                  >
+                    <option value="top">Top</option>
+                    <option value="bottom">Bottom</option>
+                    <option value="outer">Outerwear</option>
+                    <option value="head">Head/Hat</option>
+                  </select>
+                </div>
+
+                <div className="form-field">
+                  <label className="form-label">Brand</label>
+                  <input
+                    className="form-input"
+                    placeholder="e.g., Zara"
+                    value={itemForm.brand}
+                    onChange={(e) => setItemForm({...itemForm, brand: e.target.value})}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label className="form-label">Size</label>
+                  <input
+                    className="form-input"
+                    placeholder="e.g., M"
+                    value={itemForm.size}
+                    onChange={(e) => setItemForm({...itemForm, size: e.target.value})}
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button className="btn btn-ghost" onClick={() => {
+                    setUploadModal(false);
+                    setPreviewImage(null);
+                    setRemovedBgImage(null);
+                    setProcessingImage(false);
+                    setItemForm({ name: '', category: 'top', brand: '', size: 'M', emoji: '👕' });
+                  }} disabled={processingImage}>Cancel</button>
+                  <button className="btn btn-primary" onClick={handleAddItem} disabled={!previewImage || !itemForm.name || processingImage}>
+                    {processingImage ? '🔄 Processing...' : 'Add Item'}
+                  </button>
                 </div>
               </div>
             </div>
-
-            {selectedOutfit.length > 0 && (
-              <div>
-                <div className="panel-title">Outfit Analysis</div>
-                <div className="analysis-card">
-                  <div className="analysis-row">
-                    <span className="analysis-key">Fit Score</span>
-                    <span className="analysis-val">85/100</span>
-                  </div>
-                  <div className="analysis-row">
-                    <span className="analysis-key">Style Score</span>
-                    <span className="analysis-val">92/100</span>
-                  </div>
-                  <div className="analysis-row">
-                    <span className="analysis-key">Items</span>
-                    <span className="analysis-val">{selectedOutfit.length}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* TOAST */}
           {toast && <div className="toast"><div className="toast-icon">✓</div> {toast}</div>}
