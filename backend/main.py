@@ -1,10 +1,15 @@
 from datetime import datetime
 
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
-from .routers import wardrobe, tryon, avatar
+from .routers import wardrobe, tryon, avatar, auth_router
+from .db.database import engine
+from .db import models
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Wardrobe.AI API",
@@ -14,21 +19,20 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+os.makedirs(os.path.join(_static_dir, "defaults"), exist_ok=True)
+app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+
+app.include_router(auth_router.router)
 app.include_router(wardrobe.router)
 app.include_router(tryon.router)
 app.include_router(avatar.router)
-
-
-@app.get("/", response_class=HTMLResponse)
-def root():
-    with open("index.html", "r", encoding="utf-8") as f:
-        return f.read()
 
 
 @app.get("/health")

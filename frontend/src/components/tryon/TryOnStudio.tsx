@@ -7,10 +7,9 @@ import { clearAuth, getUser, authHeaders } from "@/lib/auth";
 type CategoryKey = "top" | "bottom" | "outer" | "headwear" | "shoes" | "accessory";
 
 type ClothingItem = {
-  id: number;
+  id: string;
   name: string;
   category: CategoryKey;
-  emoji: string;
   brand: string;
   size: string;
   photo: string | null;
@@ -73,92 +72,25 @@ async function removeBackground(
   }
 }
 
+async function resolveImage(src: string | null): Promise<string | null> {
+  if (!src) return null;
+  if (src.startsWith("data:") || src.startsWith("http")) return src;
+  // Relative path like /static/defaults/... — fetch via browser proxy and convert to base64
+  try {
+    const res = await fetch(src);
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
 export function TryOnStudio() {
-  const INITIAL_WARDROBE: ClothingItem[] = useMemo(
-    () => [
-      {
-        id: 1,
-        name: "Silk Blouse",
-        category: "top",
-        emoji: "👚",
-        brand: "Zara",
-        size: "M",
-        photo: null,
-        removedBg: null,
-      },
-      {
-        id: 2,
-        name: "Cotton Tee",
-        category: "top",
-        emoji: "👕",
-        brand: "H&M",
-        size: "M",
-        photo: null,
-        removedBg: null,
-      },
-      {
-        id: 3,
-        name: "Knit Sweater",
-        category: "top",
-        emoji: "🧥",
-        brand: "COS",
-        size: "L",
-        photo: null,
-        removedBg: null,
-      },
-      {
-        id: 4,
-        name: "Linen Blazer",
-        category: "outer",
-        emoji: "🥼",
-        brand: "Massimo",
-        size: "M",
-        photo: null,
-        removedBg: null,
-      },
-      {
-        id: 5,
-        name: "Trench Coat",
-        category: "outer",
-        emoji: "🧥",
-        brand: "Burberry",
-        size: "M",
-        photo: null,
-        removedBg: null,
-      },
-      {
-        id: 6,
-        name: "Wool Trousers",
-        category: "bottom",
-        emoji: "👖",
-        brand: "Uniqlo",
-        size: "30",
-        photo: null,
-        removedBg: null,
-      },
-      {
-        id: 7,
-        name: "Midi Skirt",
-        category: "bottom",
-        emoji: "👗",
-        brand: "Mango",
-        size: "S",
-        photo: null,
-        removedBg: null,
-      },
-      {
-        id: 8,
-        name: "Slim Jeans",
-        category: "bottom",
-        emoji: "👖",
-        brand: "Levi's",
-        size: "32",
-        photo: null,
-        removedBg: null,
-      },
-    ],
-    [],
-  );
 
   const CATEGORIES = useMemo(
     () => [
@@ -172,7 +104,7 @@ export function TryOnStudio() {
     [],
   );
 
-  const [wardrobe, setWardrobe] = useState<ClothingItem[]>(INITIAL_WARDROBE);
+  const [wardrobe, setWardrobe] = useState<ClothingItem[]>([]);
   const [selected, setSelected] = useState<SelectedState>({
     top: null,
     outer: null,
@@ -195,7 +127,6 @@ export function TryOnStudio() {
     category: "top" as ClothingItem["category"],
     brand: "",
     size: "M",
-    emoji: "👕",
   });
   const [avatarImage, setAvatarImage] = useState<string | null>(null);
   const [tryOnResultImage, setTryOnResultImage] = useState<string | null>(null);
@@ -203,13 +134,8 @@ export function TryOnStudio() {
   const [topAbove, setTopAbove] = useState(true);
   const [tryOnHistory, setTryOnHistory] = useState<TryOnHistoryItem[]>([]);
   const [activeTab, setActiveTab] = useState<"studio" | "history" | "settings">("studio");
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [settingsName, setSettingsName] = useState("");
   const router = useRouter();
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-  }, [theme]);
 
   const downloadImage = (dataUrl: string) => {
     const a = document.createElement("a");
@@ -221,6 +147,23 @@ export function TryOnStudio() {
   useEffect(() => {
     const user = getUser();
     if (user?.name) setUserName(user.name);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/wardrobe", { headers: authHeaders() })
+      .then((r) => r.ok ? r.json() : [])
+      .then((items: Array<{ id: string; name: string; category: string; brand: string; size: string; image_url: string | null }>) => {
+        setWardrobe(items.map((i) => ({
+          id: i.id,
+          name: i.name,
+          category: i.category as CategoryKey,
+          brand: i.brand || "",
+          size: i.size || "",
+          photo: i.image_url,
+          removedBg: i.image_url?.startsWith("http") ? i.image_url : null,
+        })));
+      })
+      .catch(() => {});
   }, []);
 
   const handleLogout = () => {
@@ -275,10 +218,10 @@ export function TryOnStudio() {
     setPreviewImage(null);
     setRemovedBgImage(null);
     setProcessingImage(false);
-    setItemForm({ name: "", category: "top", brand: "", size: "M", emoji: "👕" });
+    setItemForm({ name: "", category: "top", brand: "", size: "M" });
   };
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (!previewImage) {
       showToast("Select image first");
       return;
@@ -288,20 +231,58 @@ export function TryOnStudio() {
       return;
     }
 
-    const newItem: ClothingItem = {
-      id: Math.floor(Math.random() * 1_000_000),
-      name: itemForm.name,
-      category: itemForm.category,
-      emoji: itemForm.emoji,
-      brand: itemForm.brand,
-      size: itemForm.size,
-      photo: previewImage,
-      removedBg: removedBgImage,
-    };
+    setProcessingImage(true);
+    showToast("🔄 Saving to wardrobe...");
 
-    setWardrobe([...wardrobe, newItem]);
-    showToast("✓ Item added!");
-    closeUploadModal();
+    try {
+      const createRes = await fetch("/api/wardrobe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          name: itemForm.name,
+          category: itemForm.category,
+          brand: itemForm.brand || null,
+          size: itemForm.size || null,
+        }),
+      });
+      if (!createRes.ok) throw new Error("Failed to create item");
+      const created = await createRes.json();
+
+      let finalPhotoUrl: string | null = previewImage;
+
+      const imageToUpload = removedBgImage || previewImage;
+      const blob = await (await fetch(imageToUpload)).blob();
+      const ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
+      const formData = new FormData();
+      formData.append("file", blob, `clothing.${ext}`);
+      const imgRes = await fetch(`/api/wardrobe/${created.id}/image`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: formData,
+      });
+      if (imgRes.ok) {
+        const updated = await imgRes.json();
+        finalPhotoUrl = updated.image_url;
+      }
+
+      const newItem: ClothingItem = {
+        id: created.id,
+        name: created.name,
+        category: created.category as CategoryKey,
+        brand: created.brand || "",
+        size: created.size || "",
+        photo: finalPhotoUrl,
+        removedBg: finalPhotoUrl,
+      };
+
+      setWardrobe((prev) => [...prev, newItem]);
+      showToast("✓ Item saved!");
+      closeUploadModal();
+    } catch (err) {
+      console.error("Error saving item:", err);
+      showToast("❌ Error saving item");
+      setProcessingImage(false);
+    }
   };
 
   const toggleItem = (item: ClothingItem) => {
@@ -323,8 +304,18 @@ export function TryOnStudio() {
     }
   };
 
-  const deleteItem = (itemId: number) => {
-    setWardrobe(wardrobe.filter((item) => item.id !== itemId));
+  const deleteItem = async (itemId: string) => {
+    if (!itemId.startsWith("local_")) {
+      try {
+        await fetch(`/api/wardrobe/${itemId}`, {
+          method: "DELETE",
+          headers: authHeaders(),
+        });
+      } catch (err) {
+        console.error("Delete error:", err);
+      }
+    }
+    setWardrobe((prev) => prev.filter((item) => item.id !== itemId));
     setSelected((prev) => ({
       ...prev,
       top: prev.top?.id === itemId ? null : prev.top,
@@ -353,22 +344,15 @@ export function TryOnStudio() {
       return;
     }
 
-    const topBase64 = selected.top ? selected.top.removedBg || selected.top.photo : null;
-    const bottomBase64 = selected.bottom
-      ? selected.bottom.removedBg || selected.bottom.photo
-      : null;
-    const outerBase64 = selected.outer ? selected.outer.removedBg || selected.outer.photo : null;
-
-    // Default wardrobe items have emoji only (no images), so generation would fail.
-    if (selected.top && !topBase64) {
+    if (selected.top && !selected.top.removedBg && !selected.top.photo) {
       showToast("Upload photo for TOP item");
       return;
     }
-    if (selected.bottom && !bottomBase64) {
+    if (selected.bottom && !selected.bottom.removedBg && !selected.bottom.photo) {
       showToast("Upload photo for BOTTOM item");
       return;
     }
-    if (selected.outer && !outerBase64) {
+    if (selected.outer && !selected.outer.removedBg && !selected.outer.photo) {
       showToast("Upload photo for OUTER item");
       return;
     }
@@ -378,31 +362,42 @@ export function TryOnStudio() {
     showToast("🔄 Generating try-on...");
 
     try {
+      const [resolvedTop, resolvedBottom, resolvedOuter, resolvedHeadwear, resolvedShoes] = await Promise.all([
+        resolveImage(selected.top ? (selected.top.removedBg || selected.top.photo) : null),
+        resolveImage(selected.bottom ? (selected.bottom.removedBg || selected.bottom.photo) : null),
+        resolveImage(selected.outer ? (selected.outer.removedBg || selected.outer.photo) : null),
+        resolveImage(selected.headwear ? (selected.headwear.removedBg || selected.headwear.photo) : null),
+        resolveImage(selected.shoes ? (selected.shoes.removedBg || selected.shoes.photo) : null),
+      ]);
+
       const payload: any = { avatar_image_base64: avatarImage };
 
       if (selected.top) {
-        payload.top_image_base64 = topBase64;
+        payload.top_image_base64 = resolvedTop;
         payload.top_name = selected.top.name;
       }
       if (selected.bottom) {
-        payload.bottom_image_base64 = bottomBase64;
+        payload.bottom_image_base64 = resolvedBottom;
         payload.bottom_name = selected.bottom.name;
       }
       if (selected.outer) {
-        payload.outer_image_base64 = outerBase64;
+        payload.outer_image_base64 = resolvedOuter;
         payload.outer_name = selected.outer.name;
       }
       if (selected.headwear) {
-        payload.headwear_image_base64 = selected.headwear.removedBg || selected.headwear.photo;
+        payload.headwear_image_base64 = resolvedHeadwear;
         payload.headwear_name = selected.headwear.name;
       }
       if (selected.shoes) {
-        payload.shoes_image_base64 = selected.shoes.removedBg || selected.shoes.photo;
+        payload.shoes_image_base64 = resolvedShoes;
         payload.shoes_name = selected.shoes.name;
       }
       if (selected.accessories.length > 0) {
-        payload.accessories = selected.accessories.map((a) => ({
-          image_base64: a.removedBg || a.photo,
+        const resolvedAccs = await Promise.all(
+          selected.accessories.map((a) => resolveImage(a.removedBg || a.photo))
+        );
+        payload.accessories = selected.accessories.map((a, i) => ({
+          image_base64: resolvedAccs[i],
           name: a.name,
         }));
       }
@@ -463,11 +458,11 @@ export function TryOnStudio() {
           <div className="avatar">{userName[0]?.toUpperCase()}</div>
           <button
             onClick={handleLogout}
-            style={{ marginLeft: "12px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", color: "rgba(200,200,230,0.7)", fontSize: "11px", padding: "4px 12px", cursor: "pointer", fontFamily: "inherit", backdropFilter: "blur(8px)", transition: "all 0.2s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(167,139,250,0.5)"; e.currentTarget.style.color = "rgba(167,139,250,0.9)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.color = "rgba(200,200,230,0.7)"; }}
+            style={{ marginLeft: "12px", background: "transparent", border: "1px solid var(--border-subtle)", borderRadius: "8px", color: "var(--text-secondary)", fontSize: "11px", padding: "4px 12px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-color)"; e.currentTarget.style.color = "var(--accent-color)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
           >
-            Выйти
+            Sign out
           </button>
         </div>
       </div>
@@ -514,7 +509,7 @@ export function TryOnStudio() {
                         ) : item.photo ? (
                           <img src={item.photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : (
-                          item.emoji
+                          <div style={{ fontSize: "28px", opacity: 0.4 }}>▣</div>
                         )}
                       </div>
                       <div className="card-body">
@@ -549,7 +544,7 @@ export function TryOnStudio() {
                     key={item.id}
                     className={`outfit-tag ${styleClass}`}
                   >
-                    {item.emoji} {item.name?.substring(0, 10)}
+                    {item.name?.substring(0, 10)}
                     <span
                       className="tag-remove"
                       onClick={() => {
@@ -574,7 +569,7 @@ export function TryOnStudio() {
       <div className="main">
         <div className="main-toolbar">
           <div className="toolbar-title">
-            Virtual Try-On Studio
+            Outfit Studio
             <span style={{ marginLeft: "12px", fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400 }}>
               {wardrobe.length} items in wardrobe
             </span>
@@ -587,7 +582,7 @@ export function TryOnStudio() {
               Clear
             </button>
             <button className="btn btn-primary" disabled={selectedOutfit.length === 0} onClick={generateTryOn}>
-              {tryOnState === "loading" ? "🔄 Generating..." : "Generate Try-On"}
+              {tryOnState === "loading" ? "🔄 Generating..." : "Generate outfit ✨"}
             </button>
             <button className="btn btn-ghost" onClick={() => setShowRightPanel(!showRightPanel)} title="Toggle panel">
               {showRightPanel ? "▶" : "◀"}
@@ -618,32 +613,6 @@ export function TryOnStudio() {
                       >
                         Save
                       </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: "32px" }}>
-                <div className="panel-title" style={{ marginBottom: "16px" }}>Theme</div>
-                <div className="analysis-card">
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--cream-dim)" }}>
-                      {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
-                    </span>
-                    <div
-                      onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")}
-                      style={{
-                        width: "44px", height: "24px", borderRadius: "12px", cursor: "pointer",
-                        background: theme === "dark" ? "var(--gold-dim)" : "#d4af37",
-                        position: "relative", transition: "background 0.2s",
-                      }}
-                    >
-                      <div style={{
-                        position: "absolute", top: "3px",
-                        left: theme === "dark" ? "3px" : "23px",
-                        width: "18px", height: "18px", borderRadius: "50%",
-                        background: "var(--cream)", transition: "left 0.2s",
-                      }} />
                     </div>
                   </div>
                 </div>
@@ -697,7 +666,7 @@ export function TryOnStudio() {
                     <div key={item.id} style={{ border: "1px solid var(--border)", borderRadius: "10px", overflow: "hidden", background: "var(--surface)" }}>
                       <img src={item.image} style={{ width: "100%", display: "block", objectFit: "cover", aspectRatio: "3/4" }} />
                       <div style={{ padding: "10px 12px" }}>
-                        <div style={{ fontSize: "16px", marginBottom: "4px" }}>{item.outfit.map((o) => o.emoji).join(" ")}</div>
+                        <div style={{ fontSize: "13px", marginBottom: "4px", color: "var(--text-muted)" }}>{item.outfit.map((o) => o.name).join(", ")}</div>
                         <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-muted)", marginBottom: "8px" }}>
                           {item.timestamp.toLocaleDateString()} {item.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </div>
@@ -728,7 +697,7 @@ export function TryOnStudio() {
                       {selected.headwear.removedBg || selected.headwear.photo ? (
                         <img src={selected.headwear.removedBg || selected.headwear.photo!} alt={selected.headwear.name} />
                       ) : (
-                        <div className="flatlay-emoji">{selected.headwear.emoji}</div>
+                        <div className="flatlay-emoji">🎩</div>
                       )}
                       <div className="flatlay-label">Headwear: {selected.headwear.name}</div>
                     </div>
@@ -744,7 +713,7 @@ export function TryOnStudio() {
                       {selected.top.removedBg || selected.top.photo ? (
                         <img src={selected.top.removedBg || selected.top.photo!} alt={selected.top.name} />
                       ) : (
-                        <div className="flatlay-emoji">{selected.top.emoji}</div>
+                        <div className="flatlay-emoji">👕</div>
                       )}
                       <div className="flatlay-label">Top: {selected.top.name}</div>
                     </div>
@@ -765,7 +734,7 @@ export function TryOnStudio() {
                       {selected.outer.removedBg || selected.outer.photo ? (
                         <img src={selected.outer.removedBg || selected.outer.photo!} alt={selected.outer.name} />
                       ) : (
-                        <div className="flatlay-emoji">{selected.outer.emoji}</div>
+                        <div className="flatlay-emoji">🥼</div>
                       )}
                       <div className="flatlay-label">Outerwear: {selected.outer.name}</div>
                     </div>
@@ -776,7 +745,7 @@ export function TryOnStudio() {
                       {selected.bottom.removedBg || selected.bottom.photo ? (
                         <img src={selected.bottom.removedBg || selected.bottom.photo!} alt={selected.bottom.name} />
                       ) : (
-                        <div className="flatlay-emoji">{selected.bottom.emoji}</div>
+                        <div className="flatlay-emoji">👖</div>
                       )}
                       <div className="flatlay-label">Bottoms: {selected.bottom.name}</div>
                     </div>
@@ -787,7 +756,7 @@ export function TryOnStudio() {
                       {selected.shoes.removedBg || selected.shoes.photo ? (
                         <img src={selected.shoes.removedBg || selected.shoes.photo!} alt={selected.shoes.name} />
                       ) : (
-                        <div className="flatlay-emoji">{selected.shoes.emoji}</div>
+                        <div className="flatlay-emoji">👟</div>
                       )}
                       <div className="flatlay-label">Shoes: {selected.shoes.name}</div>
                     </div>
@@ -805,7 +774,7 @@ export function TryOnStudio() {
                           {acc.removedBg || acc.photo ? (
                             <img src={acc.removedBg || acc.photo!} alt={acc.name} />
                           ) : (
-                            <div className="flatlay-emoji">{acc.emoji}</div>
+                            <div className="flatlay-emoji">💍</div>
                           )}
                           <div className="flatlay-label">{acc.name}</div>
                         </div>
@@ -831,7 +800,7 @@ export function TryOnStudio() {
       {/* SIDEBAR RIGHT */}
       <div className={`sidebar-right${showRightPanel ? "" : " collapsed"}`}>
           <div>
-            <div className="panel-title">Your Body Photo</div>
+            <div className="panel-title">Your photo</div>
             {avatarImage ? (
               <div style={{ marginBottom: "16px" }}>
                 <img src={avatarImage} style={{ width: "100%", borderRadius: "8px", marginBottom: "8px" }} />
@@ -870,7 +839,7 @@ export function TryOnStudio() {
 
           {selectedOutfit.length > 0 && (
             <div>
-              <div className="panel-title">Using Items</div>
+              <div className="panel-title">Your outfit</div>
               <div className="analysis-card">
                 <div className="analysis-row">
                   <span className="analysis-key">Top</span>
@@ -907,33 +876,12 @@ export function TryOnStudio() {
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
                     ) : (
-                      <div style={{ fontSize: "32px", textAlign: "center" }}>
-                        {selected.top?.emoji} {selected.bottom?.emoji} {selected.outer?.emoji}
+                      <div style={{ fontSize: "14px", textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>
+                        Select items and click Generate
                       </div>
                     )}
                   </div>
 
-                  <div className="score-row">
-                    <span className="score-label">Fit Score</span>
-                    <div className="score-bar">
-                      <div className="score-fill" style={{ width: "85%" }}></div>
-                    </div>
-                    <span className="score-num">85</span>
-                  </div>
-                  <div className="score-row">
-                    <span className="score-label">Style Score</span>
-                    <div className="score-bar">
-                      <div className="score-fill" style={{ width: "92%" }}></div>
-                    </div>
-                    <span className="score-num">92</span>
-                  </div>
-                  <div className="score-row">
-                    <span className="score-label">Confidence</span>
-                    <div className="score-bar">
-                      <div className="score-fill" style={{ width: "88%" }}></div>
-                    </div>
-                    <span className="score-num">88</span>
-                  </div>
                 </div>
               </div>
               <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>

@@ -1,17 +1,46 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List
 
+
+# ── Auth ──────────────────────────────────
+
+class UserRegister(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserOut(BaseModel):
+    id: str
+    name: str
+    email: str
+    avatar_url: Optional[str] = None
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
+
+
+# ── Wardrobe ──────────────────────────────
 
 class ClothingItem(BaseModel):
     name: str
-    category: str          # top | bottom | outer
-    brand: Optional[str] = "Unknown"
-    size: Optional[str] = "M"
-    emoji: Optional[str] = "👕"
+    category: str          # top | bottom | outer | shoes | headwear | accessory
+    brand: Optional[str] = None
+    size: Optional[str] = None
 
 
-class ClothingItemOut(ClothingItem):
+class ClothingItemOut(BaseModel):
     id: str
+    name: str
+    category: str
+    brand: Optional[str] = None
+    size: Optional[str] = None
+    image_url: Optional[str] = None
     uploaded_at: str
 
 
@@ -38,6 +67,11 @@ class AnalysisResult(BaseModel):
     recommendation: str
 
 
+class AccessoryItem(BaseModel):
+    image_base64: Optional[str] = None
+    name: str
+
+
 class VirtualTryOnRequest(BaseModel):
     avatar_image_base64: str
     top_image_base64: Optional[str] = None
@@ -46,3 +80,8 @@ class VirtualTryOnRequest(BaseModel):
     top_name: Optional[str] = None
     bottom_name: Optional[str] = None
     outer_name: Optional[str] = None
+    headwear_image_base64: Optional[str] = None
+    headwear_name: Optional[str] = None
+    shoes_image_base64: Optional[str] = None
+    shoes_name: Optional[str] = None
+    accessories: Optional[List[AccessoryItem]] = None

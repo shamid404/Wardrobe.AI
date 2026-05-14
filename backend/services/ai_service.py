@@ -1,6 +1,6 @@
 import uuid
 import random
-from typing import Optional
+from typing import Optional, List
 
 import replicate
 
@@ -18,6 +18,11 @@ async def generate_virtual_tryon(
     top_name: Optional[str] = None,
     bottom_name: Optional[str] = None,
     outer_name: Optional[str] = None,
+    headwear_url: Optional[str] = None,
+    headwear_name: Optional[str] = None,
+    shoes_url: Optional[str] = None,
+    shoes_name: Optional[str] = None,
+    accessories: Optional[List[dict]] = None,  # [{url, name}, ...]
 ) -> dict:
     """Generate virtual try-on using Replicate flux-2-pro model."""
     try:
@@ -29,6 +34,14 @@ async def generate_virtual_tryon(
             prompt_parts.append(f"wearing {bottom_name} on lower body")
         if outer_name and outer_url:
             prompt_parts.append(f"wearing {outer_name} as outerwear")
+        if headwear_name and headwear_url:
+            prompt_parts.append(f"wearing {headwear_name} as headwear")
+        if shoes_name and shoes_url:
+            prompt_parts.append(f"wearing {shoes_name} as footwear")
+        if accessories:
+            names = [a["name"] for a in accessories if a.get("name")]
+            if names:
+                prompt_parts.append(f"accessorized with {', '.join(names)}")
 
         prompt = ", ".join(prompt_parts) + ", on neutral background, photorealistic, high quality"
 
@@ -39,6 +52,15 @@ async def generate_virtual_tryon(
             input_images.append(bottom_url)
         if outer_url:
             input_images.append(outer_url)
+        if headwear_url:
+            input_images.append(headwear_url)
+        if shoes_url:
+            input_images.append(shoes_url)
+        for acc in (accessories or []):
+            if acc.get("url"):
+                input_images.append(acc["url"])
+
+        input_images = input_images[:8]
 
         if replicate_client is None:
             raise RuntimeError("REPLICATE_API_TOKEN не задан. Укажите переменную окружения REPLICATE_API_TOKEN.")
