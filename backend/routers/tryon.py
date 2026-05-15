@@ -19,32 +19,19 @@ async def generate_tryon(request: VirtualTryOnRequest, user=Depends(get_current_
     """Generate virtual try-on using Replicate flux-2-pro model."""
     try:
         avatar_url = upload_to_cloudinary(request.avatar_image_base64)
+        outfit_collage_url = upload_to_cloudinary(request.outfit_collage_base64) if request.outfit_collage_base64 else None
 
-        top_url = upload_to_cloudinary(request.top_image_base64) if request.top_image_base64 else None
-        bottom_url = upload_to_cloudinary(request.bottom_image_base64) if request.bottom_image_base64 else None
-        outer_url = upload_to_cloudinary(request.outer_image_base64) if request.outer_image_base64 else None
-        headwear_url = upload_to_cloudinary(request.headwear_image_base64) if request.headwear_image_base64 else None
-        shoes_url = upload_to_cloudinary(request.shoes_image_base64) if request.shoes_image_base64 else None
-
-        uploaded_accessories = []
-        if request.accessories:
-            for acc in request.accessories:
-                url = upload_to_cloudinary(acc.image_base64) if acc.image_base64 else None
-                uploaded_accessories.append({"url": url, "name": acc.name})
+        accessory_names = [a.name for a in request.accessories] if request.accessories else []
 
         result = await generate_virtual_tryon(
             avatar_url=avatar_url,
-            top_url=top_url,
-            bottom_url=bottom_url,
-            outer_url=outer_url,
+            outfit_collage_url=outfit_collage_url,
             top_name=request.top_name,
             bottom_name=request.bottom_name,
             outer_name=request.outer_name,
-            headwear_url=headwear_url,
             headwear_name=request.headwear_name,
-            shoes_url=shoes_url,
             shoes_name=request.shoes_name,
-            accessories=uploaded_accessories or None,
+            accessory_names=accessory_names,
         )
 
         if result["success"]:

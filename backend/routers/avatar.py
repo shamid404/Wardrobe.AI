@@ -9,6 +9,7 @@ from ..config import REMOVE_BG_API_KEY
 from ..db.database import get_db
 from ..db.models import User
 from ..services.minio_service import upload_file
+from ..services.vision_service import analyze_clothing
 
 router = APIRouter(tags=["avatar"])
 
@@ -31,6 +32,16 @@ async def upload_avatar_image(
     db.commit()
 
     return {"avatar_url": url}
+
+
+@router.post("/analyze-clothing")
+async def analyze_clothing_endpoint(file: UploadFile = File(...)):
+    """Detect clothing category, name, color from image using Gemini Vision."""
+    contents = await file.read()
+    content_type = file.content_type or "image/jpeg"
+    image_b64 = f"data:{content_type};base64,{base64.b64encode(contents).decode()}"
+    result = analyze_clothing(image_b64)
+    return result if result else {"name": "", "category": "top", "color": "", "description": ""}
 
 
 @router.post("/remove-background")

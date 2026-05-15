@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..db.database import get_db
 from ..db.models import WardrobeItem
-from ..models.schemas import ClothingItem, ClothingItemOut
+from ..models.schemas import ClothingItem, ClothingItemOut, ClothingItemUpdate
 from ..services.minio_service import upload_file, delete_file
 
 router = APIRouter(prefix="/wardrobe", tags=["wardrobe"])
@@ -45,6 +45,32 @@ def add_clothing(item: ClothingItem, user=Depends(get_current_user), db: Session
     db.commit()
     db.refresh(db_item)
     return _to_out(db_item)
+
+
+@router.patch("/{item_id}", response_model=ClothingItemOut)
+def update_clothing(
+    item_id: str,
+    data: ClothingItemUpdate,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    item = db.query(WardrobeItem).filter(
+        WardrobeItem.id == item_id,
+        WardrobeItem.user_id == user["id"],
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if data.name is not None:
+        item.name = data.name
+    if data.category is not None:
+        item.category = data.category
+    if data.brand is not None:
+        item.brand = data.brand
+    if data.size is not None:
+        item.size = data.size
+    db.commit()
+    db.refresh(item)
+    return _to_out(item)
 
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

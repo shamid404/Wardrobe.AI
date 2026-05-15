@@ -12,55 +12,42 @@ replicate_client = replicate.Client(api_token=REPLICATE_API_TOKEN) if REPLICATE_
 
 async def generate_virtual_tryon(
     avatar_url: str,
-    top_url: Optional[str] = None,
-    bottom_url: Optional[str] = None,
-    outer_url: Optional[str] = None,
+    outfit_collage_url: Optional[str] = None,
     top_name: Optional[str] = None,
     bottom_name: Optional[str] = None,
     outer_name: Optional[str] = None,
-    headwear_url: Optional[str] = None,
     headwear_name: Optional[str] = None,
-    shoes_url: Optional[str] = None,
     shoes_name: Optional[str] = None,
-    accessories: Optional[List[dict]] = None,  # [{url, name}, ...]
+    accessory_names: Optional[List[str]] = None,
 ) -> dict:
     """Generate virtual try-on using Replicate flux-2-pro model."""
     try:
-        prompt_parts = ["A person"]
+        prompt_parts = ["A real person wearing a complete outfit"]
 
-        if top_name and top_url:
-            prompt_parts.append(f"wearing {top_name} on upper body")
-        if bottom_name and bottom_url:
-            prompt_parts.append(f"wearing {bottom_name} on lower body")
-        if outer_name and outer_url:
-            prompt_parts.append(f"wearing {outer_name} as outerwear")
-        if headwear_name and headwear_url:
-            prompt_parts.append(f"wearing {headwear_name} as headwear")
-        if shoes_name and shoes_url:
-            prompt_parts.append(f"wearing {shoes_name} as footwear")
-        if accessories:
-            names = [a["name"] for a in accessories if a.get("name")]
-            if names:
-                prompt_parts.append(f"accessorized with {', '.join(names)}")
+        if top_name:
+            prompt_parts.append(f"{top_name} on upper body")
+        if outer_name:
+            prompt_parts.append(f"{outer_name} as outerwear")
+        if bottom_name:
+            prompt_parts.append(f"{bottom_name} on lower body")
+        if headwear_name:
+            prompt_parts.append(f"{headwear_name} as headwear")
+        if shoes_name:
+            prompt_parts.append(f"{shoes_name} as footwear")
+        if accessory_names:
+            prompt_parts.append(f"accessorized with {', '.join(accessory_names)}")
 
-        prompt = ", ".join(prompt_parts) + ", on neutral background, photorealistic, high quality"
+        prompt = (
+            ", ".join(prompt_parts)
+            + ". Reproduce the exact colors, patterns and style of clothes shown in the reference outfit image."
+            + " Full body shot, neutral background, photorealistic, high quality fashion photo."
+        )
 
         input_images = [avatar_url]
-        if top_url:
-            input_images.append(top_url)
-        if bottom_url:
-            input_images.append(bottom_url)
-        if outer_url:
-            input_images.append(outer_url)
-        if headwear_url:
-            input_images.append(headwear_url)
-        if shoes_url:
-            input_images.append(shoes_url)
-        for acc in (accessories or []):
-            if acc.get("url"):
-                input_images.append(acc["url"])
+        if outfit_collage_url:
+            input_images.append(outfit_collage_url)
 
-        input_images = input_images[:8]
+        input_images = input_images[:2]
 
         if replicate_client is None:
             raise RuntimeError("REPLICATE_API_TOKEN не задан. Укажите переменную окружения REPLICATE_API_TOKEN.")

@@ -32,6 +32,14 @@ type TryOnHistoryItem = {
   timestamp: Date;
 };
 
+type SavedOutfit = {
+  id: string;
+  name: string;
+  ai_suggested: boolean;
+  created_at: string;
+  items: { item_id: string; name: string; category: string; image_url: string | null }[];
+};
+
 async function removeBackground(
   imageDataUrl: string,
   onStep?: (step: "detect" | "segment" | "done") => void,
@@ -72,12 +80,74 @@ async function removeBackground(
   }
 }
 
+function loadImg(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function drawContain(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number, y: number, w: number, h: number,
+) {
+  const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight);
+  const sw = img.naturalWidth * scale;
+  const sh = img.naturalHeight * scale;
+  ctx.drawImage(img, x + (w - sw) / 2, y + (h - sh) / 2, sw, sh);
+}
+
+async function buildOutfitCollage(
+  items: Array<{ src: string; label: string }>,
+): Promise<string> {
+  const W = 520;
+  const ITEM_H = 280;
+  const LABEL_H = 24;
+  const GAP = 12;
+  const PAD = 16;
+  const H = PAD + items.length * (LABEL_H + ITEM_H + GAP) + PAD;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  ctx.fillStyle = "#F4ECE0";
+  ctx.fillRect(0, 0, W, H);
+
+  let y = PAD;
+  for (const item of items) {
+    ctx.fillStyle = "#7A6B5C";
+    ctx.font = "bold 14px Inter, sans-serif";
+    ctx.fillText(item.label.toUpperCase(), PAD, y + 16);
+    y += LABEL_H;
+
+    try {
+      const img = await loadImg(item.src);
+      drawContain(ctx, img, PAD, y, W - PAD * 2, ITEM_H);
+    } catch {
+      ctx.fillStyle = "#E8DFD2";
+      ctx.fillRect(PAD, y, W - PAD * 2, ITEM_H);
+    }
+
+    y += ITEM_H + GAP;
+  }
+
+  return canvas.toDataURL("image/jpeg", 0.92);
+}
+
 async function resolveImage(src: string | null): Promise<string | null> {
   if (!src) return null;
-  if (src.startsWith("data:") || src.startsWith("http")) return src;
-  // Relative path like /static/defaults/... — fetch via browser proxy and convert to base64
+  if (src.startsWith("data:")) return src;
+  // HTTP URLs → route through backend proxy to avoid canvas CORS taint
+  const fetchSrc = src.startsWith("http")
+    ? `/proxy-image?url=${encodeURIComponent(src)}`
+    : src;
   try {
-    const res = await fetch(src);
+    const res = await fetch(fetchSrc);
     const blob = await res.blob();
     return await new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -133,9 +203,205 @@ export function TryOnStudio() {
   const [userName, setUserName] = useState("User");
   const [topAbove, setTopAbove] = useState(true);
   const [tryOnHistory, setTryOnHistory] = useState<TryOnHistoryItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"studio" | "history" | "settings">("studio");
+  const [activeTab, setActiveTab] = useState<"studio" | "history" | "outfits" | "settings">("studio");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [editItem, setEditItem] = useState<ClothingItem | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", category: "top" as CategoryKey, brand: "", size: "" });
+  const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([]);
+  const [saveOutfitModal, setSaveOutfitModal] = useState(false);
+  const [saveOutfitName, setSaveOutfitName] = useState("");
+  const [saveOutfitAi, setSaveOutfitAi] = useState(false);
+  const [saveOutfitItemIds, setSaveOutfitItemIds] = useState<string[] | null>(null);
   const [settingsName, setSettingsName] = useState("");
+  const [weather, setWeather] = useState<{ temperature: number; description: string; unit: string } | null>(null);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string; recommendedItems?: ClothingItem[] }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [chatSessions, setChatSessions] = useState<{ id: string; title: string; created_at: string }[]>([]);
+  const [showSessions, setShowSessions] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  useEffect(() => {
+    if (chatOpen) {
+      fetch("/api/chat/sessions", { headers: authHeaders() })
+        .then((r) => r.ok ? r.json() : [])
+        .then(setChatSessions)
+        .catch(() => {});
+    }
+  }, [chatOpen]);
+
+  const sendChatMessage = async () => {
+    const text = chatInput.trim();
+    if (!text || chatLoading) return;
+
+    const userMsg = { role: "user" as const, content: text };
+    const updatedHistory = [...chatMessages, userMsg];
+    setChatMessages(updatedHistory);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const res = await fetch("/assistant/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          message: text,
+          history: chatMessages.map(({ role, content }) => ({ role, content })),
+          lat: userCoords?.lat ?? null,
+          lon: userCoords?.lon ?? null,
+          session_id: currentSessionId,
+        }),
+      });
+      const data = await res.json();
+      if (data.session_id) {
+        setCurrentSessionId(data.session_id);
+        setChatSessions((prev) => {
+          const exists = prev.find((s) => s.id === data.session_id);
+          if (exists) return prev;
+          return [{ id: data.session_id, title: text.slice(0, 60), created_at: new Date().toISOString() }, ...prev];
+        });
+      }
+      const names: string[] = data.recommended_items ?? [];
+      const matched = names
+        .map((name: string) => wardrobe.find((w) => w.name.toLowerCase() === name.toLowerCase()))
+        .filter(Boolean) as ClothingItem[];
+      setChatMessages([...updatedHistory, { role: "assistant", content: data.reply, recommendedItems: matched }]);
+    } catch {
+      setChatMessages([...updatedHistory, { role: "assistant", content: "Something went wrong. Please try again." }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const loadChatSession = async (sessionId: string) => {
+    try {
+      const res = await fetch(`/api/chat/sessions/${sessionId}/messages`, { headers: authHeaders() });
+      if (!res.ok) return;
+      const msgs = await res.json();
+      setChatMessages(msgs.map((m: any) => ({
+        role: m.role,
+        content: m.content,
+        recommendedItems: m.recommended_items?.map((ri: any) => ({
+          id: ri.id, name: ri.name, category: ri.category as CategoryKey,
+          brand: ri.brand || "", size: ri.size || "",
+          photo: ri.photo, removedBg: ri.removedBg,
+        })) ?? [],
+      })));
+      setCurrentSessionId(sessionId);
+      setShowSessions(false);
+    } catch { /* silent */ }
+  };
+
+  const deleteChatSession = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await fetch(`/api/chat/sessions/${sessionId}`, { method: "DELETE", headers: authHeaders() });
+    setChatSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    if (currentSessionId === sessionId) {
+      setChatMessages([]);
+      setCurrentSessionId(null);
+    }
+  };
+
+  const startNewChat = () => {
+    setChatMessages([]);
+    setCurrentSessionId(null);
+    setShowSessions(false);
+  };
+
+  const openSaveOutfitModal = (aiSuggested = false, itemIds: string[] | null = null) => {
+    setSaveOutfitName("");
+    setSaveOutfitAi(aiSuggested);
+    setSaveOutfitItemIds(itemIds);
+    setSaveOutfitModal(true);
+  };
+
+  const saveOutfit = async () => {
+    const ids = saveOutfitItemIds ?? selectedOutfit.map((i) => i.id);
+    if (!ids.length || !saveOutfitName.trim()) return;
+    try {
+      const res = await fetch("/api/outfits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ name: saveOutfitName.trim(), item_ids: ids, ai_suggested: saveOutfitAi }),
+      });
+      if (!res.ok) throw new Error();
+      const created = await res.json();
+      setSavedOutfits((prev) => [created, ...prev]);
+      setSaveOutfitModal(false);
+      setSaveOutfitName("");
+      showToast("✓ Outfit saved!");
+    } catch {
+      showToast("❌ Failed to save outfit");
+    }
+  };
+
+  const deleteOutfit = async (outfitId: string) => {
+    try {
+      await fetch(`/api/outfits/${outfitId}`, { method: "DELETE", headers: authHeaders() });
+      setSavedOutfits((prev) => prev.filter((o) => o.id !== outfitId));
+      showToast("✓ Outfit deleted");
+    } catch {
+      showToast("❌ Failed to delete outfit");
+    }
+  };
+
+  const loadOutfit = (outfit: SavedOutfit) => {
+    const newSelected: SelectedState = { top: null, outer: null, bottom: null, headwear: null, shoes: null, accessories: [] };
+    outfit.items.forEach((oi) => {
+      const found = wardrobe.find((w) => w.id === oi.item_id);
+      if (!found) return;
+      if (found.category === "accessory") {
+        newSelected.accessories.push(found);
+      } else {
+        (newSelected as any)[found.category] = found;
+      }
+    });
+    setSelected(newSelected);
+    setActiveTab("studio");
+    showToast(`✓ Outfit "${outfit.name}" loaded`);
+  };
+
+  const openEditModal = (item: ClothingItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditItem(item);
+    setEditForm({ name: item.name, category: item.category, brand: item.brand, size: item.size });
+  };
+
+  const saveEditItem = async () => {
+    if (!editItem) return;
+    try {
+      const res = await fetch(`/api/wardrobe/${editItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(editForm),
+      });
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+      setWardrobe((prev) => prev.map((w) => w.id === editItem.id ? { ...w, name: updated.name, category: updated.category as CategoryKey, brand: updated.brand || "", size: updated.size || "" } : w));
+      setSelected((prev) => {
+        const newSel = { ...prev };
+        (Object.keys(newSel) as (keyof SelectedState)[]).forEach((key) => {
+          if (key === "accessories") {
+            newSel.accessories = newSel.accessories.map((a) => a.id === editItem.id ? { ...a, name: updated.name, category: updated.category as CategoryKey, brand: updated.brand || "", size: updated.size || "" } : a);
+          } else if ((newSel[key] as ClothingItem | null)?.id === editItem.id) {
+            (newSel as any)[key] = { ...(newSel[key] as ClothingItem), name: updated.name, category: updated.category as CategoryKey, brand: updated.brand || "", size: updated.size || "" };
+          }
+        });
+        return newSel;
+      });
+      showToast("✓ Item updated");
+      setEditItem(null);
+    } catch {
+      showToast("❌ Failed to update item");
+    }
+  };
 
   const downloadImage = (dataUrl: string) => {
     const a = document.createElement("a");
@@ -147,6 +413,27 @@ export function TryOnStudio() {
   useEffect(() => {
     const user = getUser();
     if (user?.name) setUserName(user.name);
+  }, []);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        setUserCoords({ lat: coords.latitude, lon: coords.longitude });
+        try {
+          const r = await fetch(`/weather?lat=${coords.latitude}&lon=${coords.longitude}`);
+          if (r.ok) setWeather(await r.json());
+        } catch { /* silent */ }
+      },
+      () => { /* user denied — no weather shown */ },
+    );
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/outfits", { headers: authHeaders() })
+      .then((r) => r.ok ? r.json() : [])
+      .then(setSavedOutfits)
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -195,7 +482,27 @@ export function TryOnStudio() {
         });
 
         setRemovedBgImage(removedDataUrl);
-        showToast("✓ Image processed! Fill in details and add.");
+        showToast("🔍 Recognizing clothing...");
+
+        // Auto-fill form via Gemini Vision
+        try {
+          const blob = await (await fetch(removedDataUrl)).blob();
+          const fd = new FormData();
+          fd.append("file", blob, "clothing.jpg");
+          const res = await fetch("/analyze-clothing", { method: "POST", body: fd });
+          if (res.ok) {
+            const info = await res.json();
+            setItemForm((p) => ({
+              ...p,
+              name: info.name || p.name,
+              category: (info.category as ClothingItem["category"]) || p.category,
+            }));
+          }
+        } catch {
+          // Recognition failed silently — user fills manually
+        }
+
+        showToast("✓ Done! Check details and add.");
         setProcessingImage(false);
       } catch (err) {
         console.error("Error processing image:", err);
@@ -359,9 +666,10 @@ export function TryOnStudio() {
 
     setTryOnState("loading");
     setTryOnResultImage(null);
-    showToast("🔄 Generating try-on...");
+    showToast("🔄 Building outfit collage...");
 
     try {
+      // Resolve all clothing images to base64 in parallel
       const [resolvedTop, resolvedBottom, resolvedOuter, resolvedHeadwear, resolvedShoes] = await Promise.all([
         resolveImage(selected.top ? (selected.top.removedBg || selected.top.photo) : null),
         resolveImage(selected.bottom ? (selected.bottom.removedBg || selected.bottom.photo) : null),
@@ -370,37 +678,36 @@ export function TryOnStudio() {
         resolveImage(selected.shoes ? (selected.shoes.removedBg || selected.shoes.photo) : null),
       ]);
 
-      const payload: any = { avatar_image_base64: avatarImage };
+      // Build ordered outfit collage (top → outer → bottom → headwear → shoes → accessories)
+      const collageItems: Array<{ src: string; label: string }> = [];
+      if (resolvedTop && selected.top) collageItems.push({ src: resolvedTop, label: selected.top.name });
+      if (resolvedOuter && selected.outer) collageItems.push({ src: resolvedOuter, label: selected.outer.name });
+      if (resolvedBottom && selected.bottom) collageItems.push({ src: resolvedBottom, label: selected.bottom.name });
+      if (resolvedHeadwear && selected.headwear) collageItems.push({ src: resolvedHeadwear, label: selected.headwear.name });
+      if (resolvedShoes && selected.shoes) collageItems.push({ src: resolvedShoes, label: selected.shoes.name });
 
-      if (selected.top) {
-        payload.top_image_base64 = resolvedTop;
-        payload.top_name = selected.top.name;
-      }
-      if (selected.bottom) {
-        payload.bottom_image_base64 = resolvedBottom;
-        payload.bottom_name = selected.bottom.name;
-      }
-      if (selected.outer) {
-        payload.outer_image_base64 = resolvedOuter;
-        payload.outer_name = selected.outer.name;
-      }
-      if (selected.headwear) {
-        payload.headwear_image_base64 = resolvedHeadwear;
-        payload.headwear_name = selected.headwear.name;
-      }
-      if (selected.shoes) {
-        payload.shoes_image_base64 = resolvedShoes;
-        payload.shoes_name = selected.shoes.name;
-      }
       if (selected.accessories.length > 0) {
         const resolvedAccs = await Promise.all(
           selected.accessories.map((a) => resolveImage(a.removedBg || a.photo))
         );
-        payload.accessories = selected.accessories.map((a, i) => ({
-          image_base64: resolvedAccs[i],
-          name: a.name,
-        }));
+        selected.accessories.forEach((a, i) => {
+          if (resolvedAccs[i]) collageItems.push({ src: resolvedAccs[i]!, label: a.name });
+        });
       }
+
+      showToast("🔄 Generating outfit...");
+      const outfitCollage = await buildOutfitCollage(collageItems);
+
+      const payload: any = {
+        avatar_image_base64: avatarImage,
+        outfit_collage_base64: outfitCollage,
+        top_name: selected.top?.name,
+        bottom_name: selected.bottom?.name,
+        outer_name: selected.outer?.name,
+        headwear_name: selected.headwear?.name,
+        shoes_name: selected.shoes?.name,
+        accessories: selected.accessories.map((a) => ({ name: a.name })),
+      };
 
       const response = await fetch("/generate-tryon", {
         method: "POST",
@@ -449,11 +756,21 @@ export function TryOnStudio() {
           <a href="#" className={activeTab === "history" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("history"); }}>
             History {tryOnHistory.length > 0 && `(${tryOnHistory.length})`}
           </a>
+          <a href="#" className={activeTab === "outfits" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("outfits"); }}>
+            Outfits {savedOutfits.length > 0 && `(${savedOutfits.length})`}
+          </a>
           <a href="#" className={activeTab === "settings" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("settings"); }}>
             Settings
           </a>
         </div>
         <div className="header-user">
+          {weather && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--text-secondary)", marginRight: "8px", padding: "4px 10px", background: "var(--bg-secondary)", borderRadius: "8px", border: "1px solid var(--border-subtle)" }}>
+              <span>{weather.temperature}{weather.unit}</span>
+              <span style={{ opacity: 0.7 }}>·</span>
+              <span>{weather.description}</span>
+            </div>
+          )}
           <span>{userName}</span>
           <div className="avatar">{userName[0]?.toUpperCase()}</div>
           <button
@@ -496,12 +813,16 @@ export function TryOnStudio() {
                       <div className="card-check">✓</div>
                       <div
                         className="card-delete"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteItem(item.id);
-                        }}
+                        onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
                       >
                         ✕
+                      </div>
+                      <div
+                        onClick={(e) => openEditModal(item, e)}
+                        style={{ position: "absolute", top: "6px", left: "6px", width: "20px", height: "20px", borderRadius: "50%", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "11px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 2, opacity: 0, transition: "opacity 0.2s" }}
+                        className="card-edit-btn"
+                      >
+                        ✎
                       </div>
                       <div className="card-thumb">
                         {item.removedBg ? (
@@ -581,6 +902,13 @@ export function TryOnStudio() {
             >
               Clear
             </button>
+            <button
+              className="btn btn-ghost"
+              disabled={selectedOutfit.length === 0}
+              onClick={() => openSaveOutfitModal(false, null)}
+            >
+              Save outfit
+            </button>
             <button className="btn btn-primary" disabled={selectedOutfit.length === 0} onClick={generateTryOn}>
               {tryOnState === "loading" ? "🔄 Generating..." : "Generate outfit ✨"}
             </button>
@@ -592,7 +920,8 @@ export function TryOnStudio() {
 
         <div className="canvas-area">
           {activeTab === "settings" && (
-            <div style={{ padding: "32px", maxWidth: "520px" }}>
+            <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "32px" }}>
+            <div style={{ maxWidth: "520px" }}>
               <div style={{ marginBottom: "32px" }}>
                 <div className="panel-title" style={{ marginBottom: "16px" }}>Profile</div>
                 <div className="analysis-card">
@@ -650,10 +979,68 @@ export function TryOnStudio() {
                 </div>
               </div>
             </div>
+            </div>
+          )}
+
+          {activeTab === "outfits" && (
+            <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "24px" }}>
+              {savedOutfits.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">👗</div>
+                  <div className="empty-title">No Saved Outfits</div>
+                  <div className="empty-sub">Select items on the canvas and click "Save outfit"</div>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "16px" }}>
+                  {savedOutfits.map((outfit) => (
+                    <div key={outfit.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "12px", overflow: "hidden", background: "var(--surface)" }}>
+                      {/* Item previews */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", padding: "12px", background: "var(--bg-secondary)", minHeight: "80px" }}>
+                        {outfit.items.slice(0, 4).map((oi) => (
+                          <div key={oi.item_id} style={{ width: "52px", height: "52px", borderRadius: "8px", overflow: "hidden", background: "var(--bg-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {oi.image_url ? (
+                              <img src={oi.image_url} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                            ) : (
+                              <div style={{ fontSize: "20px", opacity: 0.3 }}>▣</div>
+                            )}
+                          </div>
+                        ))}
+                        {outfit.items.length > 4 && (
+                          <div style={{ width: "52px", height: "52px", borderRadius: "8px", background: "var(--bg-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: "var(--text-secondary)" }}>
+                            +{outfit.items.length - 4}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ padding: "12px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                          <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-primary)" }}>{outfit.name}</div>
+                          {outfit.ai_suggested && (
+                            <span style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.06em", padding: "2px 6px", borderRadius: "20px", background: "linear-gradient(135deg, #7c6fa0, #d4af37)", color: "#fff" }}>
+                              AI
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "10px" }}>
+                          {outfit.items.length} item{outfit.items.length !== 1 ? "s" : ""} · {outfit.created_at}
+                        </div>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button className="btn btn-primary" style={{ flex: 1, fontSize: "12px" }} onClick={() => loadOutfit(outfit)}>
+                            Wear it
+                          </button>
+                          <button className="btn btn-ghost" style={{ fontSize: "12px" }} onClick={() => deleteOutfit(outfit.id)}>
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {activeTab === "history" && (
-            <div style={{ padding: "24px" }}>
+            <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "24px" }}>
               {tryOnHistory.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">🕐</div>
@@ -1026,12 +1413,244 @@ export function TryOnStudio() {
         </div>
       )}
 
+      {/* SAVE OUTFIT MODAL */}
+      {saveOutfitModal && (
+        <div className="modal-bg" onClick={() => setSaveOutfitModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "360px" }}>
+            <div className="modal-title">Save Outfit</div>
+            <div style={{ marginBottom: "16px", fontSize: "13px", color: "var(--text-secondary)" }}>
+              {selectedOutfit.length} item{selectedOutfit.length !== 1 ? "s" : ""}: {selectedOutfit.map((i) => i.name).join(", ")}
+            </div>
+            <div>
+              <div className="form-label">Outfit name</div>
+              <input
+                className="form-input"
+                value={saveOutfitName}
+                onChange={(e) => setSaveOutfitName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveOutfit(); }}
+                placeholder="e.g. Date night, Office look..."
+                autoFocus
+              />
+            </div>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "16px" }}>
+              <button className="btn btn-ghost" onClick={() => setSaveOutfitModal(false)}>Cancel</button>
+              <button className="btn btn-primary" disabled={!saveOutfitName.trim()} onClick={saveOutfit}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT MODAL */}
+      {editItem && (
+        <div className="modal-bg" onClick={() => setEditItem(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "400px" }}>
+            <div className="modal-title">Edit Item</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div>
+                <div className="form-label">Name</div>
+                <input className="form-input" value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} />
+              </div>
+              <div>
+                <div className="form-label">Category</div>
+                <select className="form-input" value={editForm.category} onChange={(e) => setEditForm((p) => ({ ...p, category: e.target.value as CategoryKey }))}>
+                  <option value="top">Top</option>
+                  <option value="bottom">Bottom</option>
+                  <option value="outer">Outerwear</option>
+                  <option value="shoes">Shoes</option>
+                  <option value="headwear">Headwear</option>
+                  <option value="accessory">Accessory</option>
+                </select>
+              </div>
+              <div>
+                <div className="form-label">Brand</div>
+                <input className="form-input" value={editForm.brand} onChange={(e) => setEditForm((p) => ({ ...p, brand: e.target.value }))} placeholder="Optional" />
+              </div>
+              <div>
+                <div className="form-label">Size</div>
+                <input className="form-input" value={editForm.size} onChange={(e) => setEditForm((p) => ({ ...p, size: e.target.value }))} placeholder="Optional" />
+              </div>
+              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "4px" }}>
+                <button className="btn btn-ghost" onClick={() => setEditItem(null)}>Cancel</button>
+                <button className="btn btn-primary" disabled={!editForm.name.trim()} onClick={saveEditItem}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TOAST */}
       {toast && (
         <div className="toast">
           <div className="toast-icon">✓</div> {toast}
         </div>
       )}
+
+      {/* FLOATING ASSISTANT */}
+      <div style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "12px" }}>
+        {chatOpen && (
+          <div style={{ width: "360px", height: "520px", background: "var(--bg-primary)", border: "1px solid var(--border-subtle)", borderRadius: "20px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            {/* Chat header */}
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-secondary)", gap: "8px" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "14px", fontFamily: "var(--font-serif)", color: "var(--text-primary)", fontWeight: 600 }}>Style Assistant</div>
+                {weather && <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>{weather.temperature}{weather.unit} · {weather.description}</div>}
+              </div>
+              <button onClick={() => setShowSessions((s) => !s)} style={{ background: showSessions ? "var(--accent-color)" : "var(--bg-primary)", border: "1px solid var(--border-subtle)", borderRadius: "8px", cursor: "pointer", fontSize: "11px", color: showSessions ? "#fff" : "var(--text-secondary)", padding: "4px 10px", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                Chats {chatSessions.length > 0 && `(${chatSessions.length})`}
+              </button>
+              <button onClick={() => setChatOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "var(--text-secondary)", lineHeight: 1, flexShrink: 0 }}>×</button>
+            </div>
+
+            {/* Sessions panel */}
+            {showSessions && (
+              <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+                <button onClick={startNewChat} style={{ margin: "12px 16px 4px", padding: "10px", background: "var(--accent-color)", color: "#fff", border: "none", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontFamily: "inherit", fontWeight: 600 }}>
+                  + New chat
+                </button>
+                {chatSessions.length === 0 ? (
+                  <div style={{ padding: "24px 16px", textAlign: "center", fontSize: "13px", color: "var(--text-secondary)" }}>No saved chats yet</div>
+                ) : (
+                  <div style={{ padding: "8px 0" }}>
+                    {chatSessions.map((s) => (
+                      <div key={s.id} onClick={() => loadChatSession(s.id)}
+                        style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", cursor: "pointer", background: s.id === currentSessionId ? "var(--bg-secondary)" : "transparent", borderLeft: s.id === currentSessionId ? "2px solid var(--accent-color)" : "2px solid transparent" }}
+                        onMouseEnter={(e) => { if (s.id !== currentSessionId) e.currentTarget.style.background = "var(--bg-secondary)"; }}
+                        onMouseLeave={(e) => { if (s.id !== currentSessionId) e.currentTarget.style.background = "transparent"; }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "13px", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
+                          <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>{s.created_at}</div>
+                        </div>
+                        <button onClick={(e) => deleteChatSession(s.id, e)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "var(--text-secondary)", padding: "2px 4px", flexShrink: 0, opacity: 0.6 }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Messages */}
+            {!showSessions && <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              {chatMessages.length === 0 && (
+                <div style={{ textAlign: "center", marginTop: "24px" }}>
+                  <div style={{ fontSize: "32px", marginBottom: "8px" }}>✨</div>
+                  <div style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: "1.6", marginBottom: "16px" }}>
+                    Ask me to build an outfit for any occasion. I know your wardrobe{weather ? ` and the weather` : ""}.
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {["What should I wear today?", "Build an outfit for a date night", "What to wear tomorrow?", "Smart casual look"].map((hint) => (
+                      <button key={hint} onClick={() => setChatInput(hint)}
+                        style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)", borderRadius: "12px", padding: "8px 14px", fontSize: "12px", color: "var(--text-secondary)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                        {hint}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {chatMessages.map((msg, i) => (
+                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: msg.role === "user" ? "flex-end" : "flex-start", gap: "8px" }}>
+                  <div style={{
+                    maxWidth: "85%", padding: "10px 14px",
+                    borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                    background: msg.role === "user" ? "var(--accent-color)" : "var(--bg-secondary)",
+                    color: msg.role === "user" ? "#fff" : "var(--text-primary)",
+                    fontSize: "13px", lineHeight: "1.6", whiteSpace: "pre-wrap",
+                    border: msg.role === "assistant" ? "1px solid var(--border-subtle)" : "none",
+                  }}>
+                    {msg.content}
+                  </div>
+
+                  {/* Recommended item cards */}
+                  {msg.role === "assistant" && msg.recommendedItems && msg.recommendedItems.length > 0 && (
+                    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                        {msg.recommendedItems.map((item) => (
+                          <div key={item.id} style={{ width: "100px", border: "1px solid var(--border-subtle)", borderRadius: "12px", overflow: "hidden", background: "var(--surface)", cursor: "pointer" }}
+                            onClick={() => toggleItem(item)} title={`Click to select ${item.name}`}>
+                            <div style={{ width: "100%", height: "80px", background: "var(--bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                              {(item.removedBg || item.photo) ? (
+                                <img src={item.removedBg || item.photo!} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                              ) : (
+                                <div style={{ fontSize: "24px", opacity: 0.3 }}>▣</div>
+                              )}
+                            </div>
+                            <div style={{ padding: "6px 8px" }}>
+                              <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.name}</div>
+                              <div style={{ fontSize: "9px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{item.category}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        <button
+                          onClick={() => {
+                            const newSelected: SelectedState = { top: null, outer: null, bottom: null, headwear: null, shoes: null, accessories: [] };
+                            msg.recommendedItems!.forEach((item) => {
+                              if (item.category === "accessory") {
+                                newSelected.accessories.push(item);
+                              } else {
+                                (newSelected as any)[item.category] = item;
+                              }
+                            });
+                            setSelected(newSelected);
+                            showToast("✓ Outfit applied to canvas");
+                            setChatOpen(false);
+                          }}
+                          className="btn btn-primary"
+                          style={{ fontSize: "12px", padding: "6px 14px" }}
+                        >
+                          Apply to canvas ✨
+                        </button>
+                        <button
+                          onClick={() => openSaveOutfitModal(true, msg.recommendedItems!.map((i) => i.id))}
+                          className="btn btn-ghost"
+                          style={{ fontSize: "12px", padding: "6px 14px" }}
+                        >
+                          Save outfit
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {chatLoading && (
+                <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <div style={{ padding: "10px 16px", borderRadius: "16px 16px 16px 4px", background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)", fontSize: "16px", letterSpacing: "4px", color: "var(--text-secondary)" }}>···</div>
+                </div>
+              )}
+              <div ref={chatBottomRef} />
+            </div>}
+
+            {/* Input */}
+            {!showSessions && <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border-subtle)", display: "flex", gap: "8px", alignItems: "flex-end" }}>
+              <textarea
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                placeholder="Ask your style assistant..."
+                rows={1}
+                style={{ flex: 1, resize: "none", background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)", borderRadius: "10px", padding: "8px 12px", fontSize: "13px", color: "var(--text-primary)", fontFamily: "inherit", outline: "none" }}
+              />
+              <button onClick={sendChatMessage} disabled={!chatInput.trim() || chatLoading} className="btn btn-primary" style={{ padding: "8px 16px", fontSize: "13px" }}>
+                →
+              </button>
+            </div>}
+          </div>
+        )}
+
+        {/* Toggle button */}
+        <button
+          onClick={() => setChatOpen((o) => !o)}
+          style={{ width: "52px", height: "52px", borderRadius: "50%", background: "var(--accent-color)", border: "none", cursor: "pointer", fontSize: "22px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)", transition: "transform 0.2s" }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+          title="Style Assistant"
+        >
+          {chatOpen ? "×" : "✨"}
+        </button>
+      </div>
     </div>
   );
 }

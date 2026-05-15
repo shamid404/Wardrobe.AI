@@ -499,6 +499,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 }
 .card-item:hover .card-delete { opacity: 1; transform: scale(1); }
 .card-delete:hover { filter: brightness(1.15); }
+.card-item:hover .card-edit-btn { opacity: 1 !important; }
 
 .card-thumb {
   width: 100%;

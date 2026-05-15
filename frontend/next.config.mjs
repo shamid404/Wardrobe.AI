@@ -9,6 +9,13 @@ const nextConfig = {
       { source: "/api/wardrobe/:path*", destination: "http://127.0.0.1:8000/wardrobe/:path*" },
       { source: "/api/auth/:path*", destination: "http://127.0.0.1:8000/auth/:path*" },
       { source: "/static/:path*", destination: "http://127.0.0.1:8000/static/:path*" },
+      { source: "/proxy-image", destination: "http://127.0.0.1:8000/proxy-image" },
+      { source: "/analyze-clothing", destination: "http://127.0.0.1:8000/analyze-clothing" },
+      { source: "/weather", destination: "http://127.0.0.1:8000/weather" },
+      { source: "/assistant/chat", destination: "http://127.0.0.1:8000/assistant/chat" },
+      { source: "/api/outfits", destination: "http://127.0.0.1:8000/outfits" },
+      { source: "/api/outfits/:path*", destination: "http://127.0.0.1:8000/outfits/:path*" },
+      { source: "/api/chat/:path*", destination: "http://127.0.0.1:8000/chat/:path*" },
     ];
   },
 };

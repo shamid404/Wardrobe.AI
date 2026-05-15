@@ -34,6 +34,13 @@ class ClothingItem(BaseModel):
     size: Optional[str] = None
 
 
+class ClothingItemUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    brand: Optional[str] = None
+    size: Optional[str] = None
+
+
 class ClothingItemOut(BaseModel):
     id: str
     name: str
@@ -67,6 +74,25 @@ class AnalysisResult(BaseModel):
     recommendation: str
 
 
+class OutfitItemOut(BaseModel):
+    item_id: str
+    name: str
+    category: str
+    image_url: Optional[str] = None
+
+class OutfitOut(BaseModel):
+    id: str
+    name: str
+    ai_suggested: bool = False
+    created_at: str
+    items: List[OutfitItemOut]
+
+class OutfitCreate(BaseModel):
+    name: str
+    item_ids: List[str]
+    ai_suggested: bool = False
+
+
 class AccessoryItem(BaseModel):
     image_base64: Optional[str] = None
     name: str
@@ -74,14 +100,10 @@ class AccessoryItem(BaseModel):
 
 class VirtualTryOnRequest(BaseModel):
     avatar_image_base64: str
-    top_image_base64: Optional[str] = None
-    bottom_image_base64: Optional[str] = None
-    outer_image_base64: Optional[str] = None
+    outfit_collage_base64: Optional[str] = None
     top_name: Optional[str] = None
     bottom_name: Optional[str] = None
     outer_name: Optional[str] = None
-    headwear_image_base64: Optional[str] = None
     headwear_name: Optional[str] = None
-    shoes_image_base64: Optional[str] = None
     shoes_name: Optional[str] = None
     accessories: Optional[List[AccessoryItem]] = None
