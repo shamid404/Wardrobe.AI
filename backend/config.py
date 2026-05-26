@@ -1,7 +1,10 @@
 import os
+import sys
 from dotenv import load_dotenv
 
 load_dotenv()
+
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://wardrobe_user:wardrobe_pass@localhost:5432/wardrobe")
 MINIO_ENDPOINT   = os.getenv("MINIO_ENDPOINT", "localhost:9000")
@@ -15,11 +18,29 @@ CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
 CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "")
 CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")]
+
+# SMTP (email verification)
+SMTP_HOST     = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT     = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER     = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM     = os.getenv("SMTP_FROM", "")
 
 # JWT
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 часа
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8  # 8 часов
+
+_INSECURE_DEFAULT = "change-me-in-production"
+if SECRET_KEY == _INSECURE_DEFAULT:
+    if ENVIRONMENT == "production":
+        print("FATAL: SECRET_KEY is using the insecure default. Set the SECRET_KEY env var.")
+        sys.exit(1)
+    else:
+        print("WARNING: SECRET_KEY is using the insecure default. Set SECRET_KEY env var before deploying.")
 
 if not REPLICATE_API_TOKEN:
     print("WARNING: REPLICATE_API_TOKEN is not set. /generate-tryon will fail with auth.")

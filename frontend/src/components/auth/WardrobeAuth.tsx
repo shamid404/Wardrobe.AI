@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { saveAuth } from "@/lib/auth";
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 interface WardrobeAuthProps {
   defaultMode?: "login" | "register";
@@ -10,7 +13,7 @@ interface WardrobeAuthProps {
 
 export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProps) {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "register">(defaultMode);
+  const [mode, setMode] = useState<"login" | "register" | "verify">(defaultMode);
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [email, setEmail] = useState("");
@@ -21,15 +24,78 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // OTP state
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  const handleOtpChange = (index: number, value: string) => {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const next = [...otp];
+    next[index] = digit;
+    setOtp(next);
+    if (digit && index < 5) otpRefs.current[index + 1]?.focus();
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!pasted) return;
+    e.preventDefault();
+    const next = [...otp];
+    pasted.split("").forEach((d, i) => { if (i < 6) next[i] = d; });
+    setOtp(next);
+    otpRefs.current[Math.min(pasted.length, 5)]?.focus();
+  };
+
   const handleSubmit = async () => {
     setError("");
-    if (mode === "register" && password !== confirmPassword) {
-      setError("Passwords do not match");
+    if (mode === "register") {
+      if (password.length < 8) { setError("Пароль должен содержать минимум 8 символов"); return; }
+      if (password !== confirmPassword) { setError("Passwords do not match"); return; }
+      setLoading(true);
+      try {
+        const res = await fetch("/api/auth/send-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          const detail = data.detail;
+          let errMsg = detail || "Failed to send code";
+          if (Array.isArray(detail)) {
+            const pwErr = detail.find((e: any) => e?.loc?.includes("password"));
+            errMsg = pwErr ? "Пароль должен содержать минимум 8 символов" : "Please check the form";
+          }
+          setError(errMsg);
+          return;
+        }
+        setOtp(["", "", "", "", "", ""]);
+        setResendCooldown(60);
+        setMode("verify");
+      } catch {
+        setError("Server unavailable");
+      } finally {
+        setLoading(false);
+      }
       return;
     }
-    setLoading(true);
-    try {
-      if (mode === "login") {
+
+    if (mode === "login") {
+      setLoading(true);
+      try {
         const res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -43,21 +109,79 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
         }
         saveAuth(data.access_token, data.user);
         router.push("/tryon");
-      } else {
-        const res = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          const detail = data.detail;
-          setError(Array.isArray(detail) ? "Please check the form" : (detail || "Registration failed"));
-          return;
-        }
-        saveAuth(data.access_token, data.user);
-        router.push("/tryon");
+      } catch {
+        setError("Server unavailable");
+      } finally {
+        setLoading(false);
       }
+    }
+  };
+
+  const handleVerify = async () => {
+    const code = otp.join("");
+    if (code.length < 6) { setError("Enter all 6 digits"); return; }
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const detail = data.detail;
+        setError(Array.isArray(detail) ? "Invalid code" : (detail || "Verification failed"));
+        return;
+      }
+      saveAuth(data.access_token, data.user);
+      router.push("/tryon");
+    } catch {
+      setError("Server unavailable");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendCooldown > 0) return;
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.detail || "Failed to resend");
+        return;
+      }
+      setOtp(["", "", "", "", "", ""]);
+      setResendCooldown(60);
+      otpRefs.current[0]?.focus();
+    } catch {
+      setError("Server unavailable");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
+    if (!credentialResponse.credential) return;
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: credentialResponse.credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.detail || "Google login failed"); return; }
+      saveAuth(data.access_token, data.user);
+      router.push("/tryon");
     } catch {
       setError("Server unavailable");
     } finally {
@@ -91,6 +215,7 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
   };
 
   return (
+  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
     <div style={{
       minHeight: "100vh",
       background: "linear-gradient(160deg, #F8F0E4 0%, #F2E8DA 100%)",
@@ -365,260 +490,353 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
             Your closet, reimagined
           </div>
 
-          {/* Tab switcher */}
-          <div style={{
-            display: "flex",
-            background: "#F4ECE0",
-            borderRadius: 12,
-            padding: 4,
-            marginBottom: 24,
-          }}>
-            {(["login", "register"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => { setMode(m); setError(""); }}
-                style={{
-                  flex: 1,
-                  padding: "8px 0",
-                  fontSize: 13,
-                  fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-                  fontWeight: 600,
-                  letterSpacing: "0.05em",
-                  textTransform: "uppercase",
-                  background: mode === m ? "#2D2218" : "transparent",
-                  color: mode === m ? "#fff" : "#7A6B5C",
-                  border: "none",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                {m === "login" ? "Sign In" : "Create"}
-              </button>
-            ))}
-          </div>
-
-          {/* Name (register only) */}
-          {mode === "register" && (
-            <div style={{ marginBottom: 16, textAlign: "left", animation: "authFadeUp 0.3s ease both" }}>
-              <label htmlFor="auth-name" style={labelStyle}>Name</label>
-              <input
-                id="auth-name"
-                type="text"
-                placeholder="Your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onFocus={() => setFocused("name")}
-                onBlur={() => setFocused(null)}
-                style={inputStyle("name")}
-              />
-            </div>
-          )}
-
-          {/* Email */}
-          <div style={{ marginBottom: 16, textAlign: "left" }}>
-            <label htmlFor="auth-email" style={labelStyle}>Email</label>
-            <input
-              id="auth-email"
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onFocus={() => setFocused("email")}
-              onBlur={() => setFocused(null)}
-              style={inputStyle("email")}
-            />
-          </div>
-
-          {/* Password */}
-          <div style={{ marginBottom: mode === "register" ? 16 : 8, textAlign: "left" }}>
-            <label htmlFor="auth-password" style={labelStyle}>Password</label>
-            <div style={{ position: "relative" }}>
-              <input
-                id="auth-password"
-                type={showPass ? "text" : "password"}
-                placeholder="Enter password..."
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onFocus={() => setFocused("password")}
-                onBlur={() => setFocused(null)}
-                style={{ ...inputStyle("password"), paddingRight: 48 }}
-              />
-              <button
-                onClick={() => setShowPass((p) => !p)}
-                style={{
-                  position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
-                  background: "none", border: "none", cursor: "pointer", padding: 2,
-                  color: "#A89A8A",
-                }}
-                aria-label={showPass ? "Hide password" : "Show password"}
-              >
-                {showPass ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Confirm password */}
-          {mode === "register" && (
-            <div style={{ marginBottom: 8, textAlign: "left", animation: "authFadeUp 0.3s 0.05s ease both" }}>
-              <label htmlFor="auth-confirm" style={labelStyle}>Confirm Password</label>
-              <div style={{ position: "relative" }}>
-                <input
-                  id="auth-confirm"
-                  type={showConfirm ? "text" : "password"}
-                  placeholder="Confirm password..."
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  onFocus={() => setFocused("confirm")}
-                  onBlur={() => setFocused(null)}
-                  style={{ ...inputStyle("confirm"), paddingRight: 48 }}
-                />
-                <button
-                  onClick={() => setShowConfirm((p) => !p)}
-                  style={{
-                    position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
-                    background: "none", border: "none", cursor: "pointer", padding: 2,
-                    color: "#A89A8A",
-                  }}
-                >
-                  {showConfirm ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  )}
-                </button>
+          {/* ── Verify email step ── */}
+          {mode === "verify" ? (
+            <div style={{ animation: "authFadeUp 0.35s ease both" }}>
+              {/* Icon */}
+              <div style={{ textAlign: "center", marginBottom: 16 }}>
+                <div style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: 56, height: 56, borderRadius: "50%",
+                  background: "rgba(200,130,109,0.12)",
+                }}>
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#C8826D" strokeWidth="1.8">
+                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                    <path d="M2 7l10 7 10-7"/>
+                  </svg>
+                </div>
               </div>
-            </div>
-          )}
+              <p style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 600, color: "#2D2218", textAlign: "center" }}>
+                Check your email
+              </p>
+              <p style={{ margin: "0 0 24px", fontSize: 13, color: "#7A6B5C", textAlign: "center", lineHeight: 1.5 }}>
+                We sent a 6-digit code to<br/>
+                <strong style={{ color: "#2D2218" }}>{email}</strong>
+              </p>
 
-          {/* Forgot password */}
-          {mode === "login" && (
-            <div style={{ textAlign: "right", marginBottom: 20 }}>
-              <span style={{
-                fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-                fontSize: 13,
-                color: "#C8826D",
-                cursor: "pointer",
-              }}>
-                Forgot your password?
-              </span>
-            </div>
-          )}
+              {/* OTP inputs */}
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 20 }}>
+                {otp.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => { otpRefs.current[i] = el; }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(i, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                    onPaste={handleOtpPaste}
+                    onFocus={() => setFocused(`otp-${i}`)}
+                    onBlur={() => setFocused(null)}
+                    style={{
+                      width: 48,
+                      height: 56,
+                      textAlign: "center",
+                      fontSize: 22,
+                      fontWeight: 700,
+                      fontFamily: "'Courier New', monospace",
+                      background: "#F4ECE0",
+                      border: `2px solid ${focused === `otp-${i}` ? "#C8826D" : digit ? "#C8826D" : "#E8DFD2"}`,
+                      borderRadius: 12,
+                      color: "#2D2218",
+                      outline: "none",
+                      transition: "border-color 0.15s",
+                      caretColor: "transparent",
+                    }}
+                  />
+                ))}
+              </div>
 
-          {/* Error */}
-          {error && (
-            <div style={{
-              marginBottom: 16,
-              padding: "10px 14px",
-              borderRadius: 10,
-              background: "rgba(184,88,88,0.08)",
-              border: "1px solid rgba(184,88,88,0.2)",
-              fontSize: 13,
-              color: "#B85858",
-              fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-              textAlign: "left",
-            }}>
-              {error}
-            </div>
-          )}
+              {/* Error */}
+              {error && (
+                <div style={{
+                  marginBottom: 16, padding: "10px 14px", borderRadius: 10,
+                  background: "rgba(184,88,88,0.08)", border: "1px solid rgba(184,88,88,0.2)",
+                  fontSize: 13, color: "#B85858", textAlign: "center",
+                }}>
+                  {error}
+                </div>
+              )}
 
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: "14px",
-              borderRadius: 12,
-              border: "none",
-              cursor: loading ? "not-allowed" : "pointer",
-              background: loading ? "#A89A8A" : "#2D2218",
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 600,
-              fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-              transition: "background 0.2s ease",
-              marginBottom: 20,
-            }}
-            onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = "#1F1810"; }}
-            onMouseLeave={(e) => { if (!loading) e.currentTarget.style.background = "#2D2218"; }}
-          >
-            {loading ? "Please wait..." : (mode === "login" ? "Sign in" : "Create account")}
-          </button>
+              {/* Confirm button */}
+              <button
+                onClick={handleVerify}
+                disabled={loading}
+                style={{
+                  width: "100%", padding: "14px", borderRadius: 12, border: "none",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  background: loading ? "#A89A8A" : "#2D2218",
+                  color: "#fff", fontSize: 14, fontWeight: 600,
+                  fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+                  transition: "background 0.2s ease", marginBottom: 16,
+                }}
+                onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = "#1F1810"; }}
+                onMouseLeave={(e) => { if (!loading) e.currentTarget.style.background = "#2D2218"; }}
+              >
+                {loading ? "Verifying..." : "Confirm email"}
+              </button>
 
-          {/* Divider */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-            <div style={{ flex: 1, height: 1, background: "#E8DFD2" }} />
-            <span style={{ fontSize: 13, color: "#A89A8A", fontFamily: "var(--font-inter, 'Inter', sans-serif)" }}>or</span>
-            <div style={{ flex: 1, height: 1, background: "#E8DFD2" }} />
-          </div>
-
-          {/* Social buttons */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-            <button style={{
-              width: "100%", padding: "11px 0",
-              borderRadius: 12, border: "1px solid #E8DFD2",
-              background: "#F4ECE0", cursor: "pointer",
-              fontSize: 14, fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-              color: "#2D2218", display: "flex", alignItems: "center",
-              justifyContent: "center", gap: 8,
-              transition: "background 0.2s",
-            }}
-              onMouseEnter={(e) => e.currentTarget.style.background = "#EDE3D4"}
-              onMouseLeave={(e) => e.currentTarget.style.background = "#F4ECE0"}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-              Continue with Google
-            </button>
-            <button style={{
-              width: "100%", padding: "11px 0",
-              borderRadius: 12, border: "1px solid #E8DFD2",
-              background: "#F4ECE0", cursor: "pointer",
-              fontSize: 14, fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-              color: "#2D2218", display: "flex", alignItems: "center",
-              justifyContent: "center", gap: 8,
-              transition: "background 0.2s",
-            }}
-              onMouseEnter={(e) => e.currentTarget.style.background = "#EDE3D4"}
-              onMouseLeave={(e) => e.currentTarget.style.background = "#F4ECE0"}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-              Continue with Apple
-            </button>
-          </div>
-
-          {/* Switch mode */}
-          <div style={{
-            fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-            fontSize: 13,
-            color: "#7A6B5C",
-          }}>
-            {mode === "login" ? (
-              <>New here?{" "}
+              {/* Resend + back */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span
                   onClick={() => { setMode("register"); setError(""); }}
-                  style={{ color: "#C8826D", cursor: "pointer", fontWeight: 500 }}
+                  style={{ fontSize: 13, color: "#A89A8A", cursor: "pointer" }}
                 >
-                  Create an account
+                  ← Back
                 </span>
-              </>
-            ) : (
-              <>Already have an account?{" "}
                 <span
-                  onClick={() => { setMode("login"); setError(""); }}
-                  style={{ color: "#C8826D", cursor: "pointer", fontWeight: 500 }}
+                  onClick={handleResend}
+                  style={{
+                    fontSize: 13,
+                    color: resendCooldown > 0 ? "#A89A8A" : "#C8826D",
+                    cursor: resendCooldown > 0 ? "default" : "pointer",
+                    fontWeight: 500,
+                  }}
                 >
-                  Sign in
+                  {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code"}
                 </span>
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Tab switcher */}
+              <div style={{
+                display: "flex",
+                background: "#F4ECE0",
+                borderRadius: 12,
+                padding: 4,
+                marginBottom: 24,
+              }}>
+                {(["login", "register"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => { setMode(m); setError(""); }}
+                    style={{
+                      flex: 1,
+                      padding: "8px 0",
+                      fontSize: 13,
+                      fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+                      fontWeight: 600,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      background: mode === m ? "#2D2218" : "transparent",
+                      color: mode === m ? "#fff" : "#7A6B5C",
+                      border: "none",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    {m === "login" ? "Sign In" : "Create"}
+                  </button>
+                ))}
+              </div>
+
+              {/* Name (register only) */}
+              {mode === "register" && (
+                <div style={{ marginBottom: 16, textAlign: "left", animation: "authFadeUp 0.3s ease both" }}>
+                  <label htmlFor="auth-name" style={labelStyle}>Name</label>
+                  <input
+                    id="auth-name"
+                    type="text"
+                    placeholder="Your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onFocus={() => setFocused("name")}
+                    onBlur={() => setFocused(null)}
+                    style={inputStyle("name")}
+                  />
+                </div>
+              )}
+
+              {/* Email */}
+              <div style={{ marginBottom: 16, textAlign: "left" }}>
+                <label htmlFor="auth-email" style={labelStyle}>Email</label>
+                <input
+                  id="auth-email"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onFocus={() => setFocused("email")}
+                  onBlur={() => setFocused(null)}
+                  style={inputStyle("email")}
+                />
+              </div>
+
+              {/* Password */}
+              <div style={{ marginBottom: mode === "register" ? 16 : 8, textAlign: "left" }}>
+                <label htmlFor="auth-password" style={labelStyle}>Password</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    id="auth-password"
+                    type={showPass ? "text" : "password"}
+                    placeholder="Enter password..."
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onFocus={() => setFocused("password")}
+                    onBlur={() => setFocused(null)}
+                    style={{ ...inputStyle("password"), paddingRight: 48 }}
+                  />
+                  <button
+                    onClick={() => setShowPass((p) => !p)}
+                    style={{
+                      position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
+                      background: "none", border: "none", cursor: "pointer", padding: 2,
+                      color: "#A89A8A",
+                    }}
+                    aria-label={showPass ? "Hide password" : "Show password"}
+                  >
+                    {showPass ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm password */}
+              {mode === "register" && (
+                <div style={{ marginBottom: 8, textAlign: "left", animation: "authFadeUp 0.3s 0.05s ease both" }}>
+                  <label htmlFor="auth-confirm" style={labelStyle}>Confirm Password</label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      id="auth-confirm"
+                      type={showConfirm ? "text" : "password"}
+                      placeholder="Confirm password..."
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onFocus={() => setFocused("confirm")}
+                      onBlur={() => setFocused(null)}
+                      style={{ ...inputStyle("confirm"), paddingRight: 48 }}
+                    />
+                    <button
+                      onClick={() => setShowConfirm((p) => !p)}
+                      style={{
+                        position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
+                        background: "none", border: "none", cursor: "pointer", padding: 2,
+                        color: "#A89A8A",
+                      }}
+                    >
+                      {showConfirm ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Forgot password */}
+              {mode === "login" && (
+                <div style={{ textAlign: "right", marginBottom: 20 }}>
+                  <span style={{
+                    fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+                    fontSize: 13,
+                    color: "#C8826D",
+                    cursor: "pointer",
+                  }}>
+                    Forgot your password?
+                  </span>
+                </div>
+              )}
+
+              {/* Error */}
+              {error && (
+                <div style={{
+                  marginBottom: 16,
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  background: "rgba(184,88,88,0.08)",
+                  border: "1px solid rgba(184,88,88,0.2)",
+                  fontSize: 13,
+                  color: "#B85858",
+                  fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+                  textAlign: "left",
+                }}>
+                  {error}
+                </div>
+              )}
+
+              {/* Submit */}
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: "14px",
+                  borderRadius: 12,
+                  border: "none",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  background: loading ? "#A89A8A" : "#2D2218",
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+                  transition: "background 0.2s ease",
+                  marginBottom: 20,
+                }}
+                onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = "#1F1810"; }}
+                onMouseLeave={(e) => { if (!loading) e.currentTarget.style.background = "#2D2218"; }}
+              >
+                {loading ? "Please wait..." : (mode === "login" ? "Sign in" : "Create account")}
+              </button>
+
+              {/* Divider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                <div style={{ flex: 1, height: 1, background: "#E8DFD2" }} />
+                <span style={{ fontSize: 13, color: "#A89A8A", fontFamily: "var(--font-inter, 'Inter', sans-serif)" }}>or</span>
+                <div style={{ flex: 1, height: 1, background: "#E8DFD2" }} />
+              </div>
+
+              {/* Social buttons */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24, alignItems: "center" }}>
+                {GOOGLE_CLIENT_ID ? (
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => setError("Google login failed")}
+                    theme="outline"
+                    size="large"
+                    width="100%"
+                    text={mode === "register" ? "signup_with" : "signin_with"}
+                  />
+                ) : null}
+              </div>
+
+              {/* Switch mode */}
+              <div style={{
+                fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+                fontSize: 13,
+                color: "#7A6B5C",
+              }}>
+                {mode === "login" ? (
+                  <>New here?{" "}
+                    <span
+                      onClick={() => { setMode("register"); setError(""); }}
+                      style={{ color: "#C8826D", cursor: "pointer", fontWeight: 500 }}
+                    >
+                      Create an account
+                    </span>
+                  </>
+                ) : (
+                  <>Already have an account?{" "}
+                    <span
+                      onClick={() => { setMode("login"); setError(""); }}
+                      style={{ color: "#C8826D", cursor: "pointer", fontWeight: 500 }}
+                    >
+                      Sign in
+                    </span>
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
+  </GoogleOAuthProvider>
   );
 }

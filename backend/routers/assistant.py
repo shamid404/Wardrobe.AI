@@ -1,6 +1,10 @@
 import json
 import requests
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -73,7 +77,9 @@ def _fetch_forecast(lat: float, lon: float) -> str:
 
 
 @router.post("/assistant/chat")
+@limiter.limit("20/minute")
 async def assistant_chat(
+    request: Request,
     req: ChatRequest,
     user=Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -87,6 +93,10 @@ async def assistant_chat(
             parts.append(f"brand: {it.brand}")
         if it.size:
             parts.append(f"size: {it.size}")
+        if it.color:
+            parts.append(f"color: {it.color}")
+        if it.season:
+            parts.append(f"season: {it.season}")
         wardrobe_lines.append("  - " + ", ".join(parts))
     wardrobe_text = "\n".join(wardrobe_lines) if wardrobe_lines else "  (wardrobe is empty)"
 
@@ -107,11 +117,13 @@ async def assistant_chat(
     system_prompt = f"""You are a personal fashion stylist assistant for a wardrobe app called Wardrobe.AI.
 Your role is to help users build outfits and give style advice based ONLY on items they actually own.
 
-User's wardrobe:
+<user_wardrobe>
 {wardrobe_text}
+</user_wardrobe>
 
-User's saved outfits:
-{outfits_text}{weather_text}
+<user_outfits>
+{outfits_text}
+</user_outfits>{weather_text}
 
 IMPORTANT — Response format:
 Always respond with valid JSON in this exact structure:
@@ -121,6 +133,7 @@ Always respond with valid JSON in this exact structure:
 }}
 
 Rules:
+- SCOPE: You ONLY answer questions about fashion, clothing, style, outfits, wardrobe, accessories, and weather-based dressing. If the user asks about anything else (politics, coding, math, history, relationships, etc.), politely decline and redirect them to fashion topics.
 - Only recommend items from the user's wardrobe listed above. Never suggest items they don't have.
 - If a saved outfit matches the user's request, mention it by name and suggest wearing it.
 - You can reference saved outfits in your message text, but recommended_items must still list the individual item names.
@@ -132,11 +145,29 @@ Rules:
 - If the wardrobe is empty, suggest they add items first and set recommended_items to [].
 - Return ONLY the JSON object, no markdown, no extra text."""
 
+    # Load session early so we can use DB history (not client-provided history)
+    session_id = req.session_id
+    session = None
+    if session_id:
+        session = db.query(ChatSession).filter(
+            ChatSession.id == session_id,
+            ChatSession.user_id == user["id"],
+        ).first()
+
+    db_history = []
+    if session:
+        db_history = (
+            db.query(ChatMessageModel)
+            .filter(ChatMessageModel.session_id == session.id)
+            .order_by(ChatMessageModel.created_at.asc())
+            .all()
+        )
+
     # Build Gemini conversation
     contents = [{"role": "user", "parts": [{"text": system_prompt + "\n\n[Conversation starts]"}]},
                 {"role": "model", "parts": [{"text": "Got it! I'm ready to help you style outfits from your wardrobe."}]}]
 
-    for msg in req.history[-10:]:  # last 10 messages for context
+    for msg in db_history[-10:]:
         role = "user" if msg.role == "user" else "model"
         contents.append({"role": role, "parts": [{"text": msg.content}]})
 
@@ -153,18 +184,11 @@ Rules:
 
     models = [
         "gemini-3-flash-preview",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash",
     ]
 
-    # Get or create chat session
-    session_id = req.session_id
-    session = None
-    if session_id:
-        session = db.query(ChatSession).filter(
-            ChatSession.id == session_id,
-            ChatSession.user_id == user["id"],
-        ).first()
+    # Create session if it wasn't found above
     if not session:
         title = req.message[:60] + ("..." if len(req.message) > 60 else "")
         session = ChatSession(user_id=user["id"], title=title)

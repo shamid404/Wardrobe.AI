@@ -30,6 +30,8 @@ class WardrobeItem(Base):
     category: Mapped[str] = mapped_column(String(50), nullable=False)   # top | bottom | outer | shoes | headwear | accessory
     brand: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     size: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    color: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    season: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

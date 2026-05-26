@@ -1,7 +1,11 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
@@ -15,39 +19,47 @@ router = APIRouter(tags=["tryon"])
 
 
 @router.post("/generate-tryon")
-async def generate_tryon(request: VirtualTryOnRequest, user=Depends(get_current_user), db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def generate_tryon(request: Request, body: VirtualTryOnRequest, user=Depends(get_current_user), db: Session = Depends(get_db)):
     """Generate virtual try-on using Replicate flux-2-pro model."""
     try:
-        avatar_url = upload_to_cloudinary(request.avatar_image_base64)
-        outfit_collage_url = upload_to_cloudinary(request.outfit_collage_base64) if request.outfit_collage_base64 else None
+        avatar_url = upload_to_cloudinary(body.avatar_image_base64)
+        outfit_collage_url = upload_to_cloudinary(body.outfit_collage_base64) if body.outfit_collage_base64 else None
 
-        accessory_names = [a.name for a in request.accessories] if request.accessories else []
+        accessory_names = [a.name for a in body.accessories] if body.accessories else []
 
         result = await generate_virtual_tryon(
             avatar_url=avatar_url,
             outfit_collage_url=outfit_collage_url,
-            top_name=request.top_name,
-            bottom_name=request.bottom_name,
-            outer_name=request.outer_name,
-            headwear_name=request.headwear_name,
-            shoes_name=request.shoes_name,
+            top_name=body.top_name,
+            bottom_name=body.bottom_name,
+            outer_name=body.outer_name,
+            headwear_name=body.headwear_name,
+            shoes_name=body.shoes_name,
             accessory_names=accessory_names,
         )
 
         if result["success"]:
             job_id = f"tryon_{uuid.uuid4().hex[:10]}"
 
+            # Upload to Cloudinary for permanent storage (Replicate URLs expire)
+            stored_url = result["result_url"]
+            try:
+                stored_url = upload_to_cloudinary(result["result_url"])
+            except Exception as e:
+                print(f"[tryon] Cloudinary upload failed, falling back to Replicate URL: {e}")
+
             preview_data_url = None
             try:
-                if result.get("result_url", "").startswith("http"):
-                    preview_data_url = url_to_data_url(result["result_url"])
+                if stored_url.startswith("http"):
+                    preview_data_url = url_to_data_url(stored_url)
             except Exception:
                 preview_data_url = None
 
             db.add(TryOnHistory(
                 id=job_id,
                 user_id=user["id"],
-                preview_url=result["result_url"],
+                preview_url=stored_url,
                 prompt=result.get("prompt"),
             ))
             db.commit()
@@ -76,8 +88,8 @@ async def generate_tryon(request: VirtualTryOnRequest, user=Depends(get_current_
 
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/history")
@@ -99,3 +111,11 @@ def get_history(user=Depends(get_current_user), db: Session = Depends(get_db)):
         }
         for r in rows
     ]
+
+
+@router.delete("/history")
+def clear_history(user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """Delete all try-on history for the current user."""
+    db.query(TryOnHistory).filter(TryOnHistory.user_id == user["id"]).delete()
+    db.commit()
+    return {"deleted": True}

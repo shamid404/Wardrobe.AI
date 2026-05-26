@@ -1,4 +1,5 @@
 import io
+import os
 import uuid
 from typing import Optional
 
@@ -18,31 +19,38 @@ _s3 = boto3.client(
 )
 
 
+_EXT_MAP = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+
+_MINIO_PUBLIC = os.getenv("MINIO_PUBLIC_BUCKET", "true").lower() == "true"
+
+
 def ensure_bucket() -> None:
     """Create bucket if it doesn't exist yet."""
     try:
         _s3.head_bucket(Bucket=MINIO_BUCKET)
     except ClientError:
         _s3.create_bucket(Bucket=MINIO_BUCKET)
-        # Make bucket publicly readable so frontend can display images
-        _s3.put_bucket_policy(
-            Bucket=MINIO_BUCKET,
-            Policy=f'''{{
-                "Version":"2012-10-17",
-                "Statement":[{{
-                    "Effect":"Allow",
-                    "Principal":"*",
-                    "Action":"s3:GetObject",
-                    "Resource":"arn:aws:s3:::{MINIO_BUCKET}/*"
-                }}]
-            }}''',
-        )
+        if _MINIO_PUBLIC:
+            # Public only in dev. In production set MINIO_PUBLIC_BUCKET=false
+            # and serve images via presigned URLs.
+            _s3.put_bucket_policy(
+                Bucket=MINIO_BUCKET,
+                Policy=f'''{{
+                    "Version":"2012-10-17",
+                    "Statement":[{{
+                        "Effect":"Allow",
+                        "Principal":"*",
+                        "Action":"s3:GetObject",
+                        "Resource":"arn:aws:s3:::{MINIO_BUCKET}/*"
+                    }}]
+                }}''',
+            )
 
 
 def upload_file(file_bytes: bytes, content_type: str, folder: str = "wardrobe") -> str:
     """Upload bytes to MinIO, return public URL."""
     ensure_bucket()
-    ext = content_type.split("/")[-1].replace("jpeg", "jpg")
+    ext = _EXT_MAP.get(content_type, "jpg")
     key = f"{folder}/{uuid.uuid4().hex}.{ext}"
     _s3.put_object(
         Bucket=MINIO_BUCKET,

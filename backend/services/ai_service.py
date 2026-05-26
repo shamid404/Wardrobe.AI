@@ -22,7 +22,7 @@ async def generate_virtual_tryon(
 ) -> dict:
     """Generate virtual try-on using Replicate flux-2-pro model."""
     try:
-        prompt_parts = ["A real person wearing a complete outfit"]
+        prompt_parts = ["A real person wearing an outfit"]
 
         if top_name:
             prompt_parts.append(f"{top_name} on upper body")
@@ -31,16 +31,17 @@ async def generate_virtual_tryon(
         if bottom_name:
             prompt_parts.append(f"{bottom_name} on lower body")
         if headwear_name:
-            prompt_parts.append(f"{headwear_name} as headwear")
+            prompt_parts.append(f"{headwear_name} on head")
         if shoes_name:
-            prompt_parts.append(f"{shoes_name} as footwear")
+            prompt_parts.append(f"{shoes_name} on feet")
         if accessory_names:
-            prompt_parts.append(f"accessorized with {', '.join(accessory_names)}")
+            prompt_parts.append(f"with {', '.join(accessory_names)}")
 
         prompt = (
             ", ".join(prompt_parts)
-            + ". Reproduce the exact colors, patterns and style of clothes shown in the reference outfit image."
-            + " Full body shot, neutral background, photorealistic, high quality fashion photo."
+            + ". Use the reference outfit image as the primary visual guide — reproduce the exact garment appearance,"
+            + " colors, patterns, and textures shown in the photo, not brand associations."
+            + " Full body shot, plain neutral background, photorealistic fashion photography."
         )
 
         input_images = [avatar_url]

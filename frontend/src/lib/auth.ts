@@ -1,8 +1,14 @@
 const TOKEN_KEY = "wardrobe_token";
 const USER_KEY = "wardrobe_user";
 
-export function saveAuth(token: string, user: { id: string; name: string; email: string }) {
+export type AuthUser = { id: string; name: string; email: string; avatar_url?: string | null };
+
+export function saveAuth(token: string, user: AuthUser) {
   localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function saveUser(user: AuthUser) {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
@@ -11,7 +17,7 @@ export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
-export function getUser(): { id: string; name: string; email: string } | null {
+export function getUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
   const u = localStorage.getItem(USER_KEY);
   return u ? JSON.parse(u) : null;

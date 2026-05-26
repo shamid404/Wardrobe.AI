@@ -20,6 +20,8 @@ def _to_out(item: WardrobeItem) -> ClothingItemOut:
         category=item.category,
         brand=item.brand,
         size=item.size,
+        color=item.color,
+        season=item.season,
         image_url=item.image_url,
         uploaded_at=item.uploaded_at.date().isoformat(),
     )
@@ -40,6 +42,8 @@ def add_clothing(item: ClothingItem, user=Depends(get_current_user), db: Session
         category=item.category,
         brand=item.brand,
         size=item.size,
+        color=item.color,
+        season=item.season,
     )
     db.add(db_item)
     db.commit()
@@ -68,6 +72,10 @@ def update_clothing(
         item.brand = data.brand
     if data.size is not None:
         item.size = data.size
+    if data.color is not None:
+        item.color = data.color
+    if data.season is not None:
+        item.season = data.season
     db.commit()
     db.refresh(item)
     return _to_out(item)

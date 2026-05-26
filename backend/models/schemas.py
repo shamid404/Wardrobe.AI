@@ -1,13 +1,22 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, List, Literal
 
 
 # ── Auth ──────────────────────────────────
 
 class UserRegister(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8, max_length=128)
+
+class SendVerificationCode(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+class VerifyEmailCode(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6)
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -27,18 +36,25 @@ class Token(BaseModel):
 
 # ── Wardrobe ──────────────────────────────
 
+_CATEGORY = Literal["top", "bottom", "outer", "shoes", "headwear", "accessory"]
+
+
 class ClothingItem(BaseModel):
-    name: str
-    category: str          # top | bottom | outer | shoes | headwear | accessory
-    brand: Optional[str] = None
-    size: Optional[str] = None
+    name: str = Field(min_length=1, max_length=200)
+    category: _CATEGORY
+    brand: Optional[str] = Field(default=None, max_length=100)
+    size: Optional[str] = Field(default=None, max_length=20)
+    color: Optional[str] = Field(default=None, max_length=50)
+    season: Optional[str] = Field(default=None, max_length=50)
 
 
 class ClothingItemUpdate(BaseModel):
-    name: Optional[str] = None
-    category: Optional[str] = None
-    brand: Optional[str] = None
-    size: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    category: Optional[_CATEGORY] = None
+    brand: Optional[str] = Field(default=None, max_length=100)
+    size: Optional[str] = Field(default=None, max_length=20)
+    color: Optional[str] = Field(default=None, max_length=50)
+    season: Optional[str] = Field(default=None, max_length=50)
 
 
 class ClothingItemOut(BaseModel):
@@ -47,6 +63,8 @@ class ClothingItemOut(BaseModel):
     category: str
     brand: Optional[str] = None
     size: Optional[str] = None
+    color: Optional[str] = None
+    season: Optional[str] = None
     image_url: Optional[str] = None
     uploaded_at: str
 
