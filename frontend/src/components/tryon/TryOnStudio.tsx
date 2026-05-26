@@ -240,9 +240,13 @@ export function TryOnStudio() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deletingOut, setDeletingOut] = useState(false);
+  const [slideDir, setSlideDir] = useState<"left" | "right">("left");
+  const prevTabRef = useRef(activeTab);
   const [showSessions, setShowSessions] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const [showTour, setShowTour] = useState(false);
+  const [mobileWardrobeOpen, setMobileWardrobeOpen] = useState(false);
+  const [mobilePhotoOpen, setMobilePhotoOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -251,6 +255,14 @@ export function TryOnStudio() {
       return () => clearTimeout(t);
     }
   }, []);
+
+  const TAB_ORDER = ["studio", "history", "outfits", "settings"];
+  useEffect(() => {
+    const prev = TAB_ORDER.indexOf(prevTabRef.current);
+    const next = TAB_ORDER.indexOf(activeTab);
+    setSlideDir(next >= prev ? "left" : "right");
+    prevTabRef.current = activeTab;
+  }, [activeTab]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -832,7 +844,7 @@ export function TryOnStudio() {
   };
 
   return (
-    <div className={`app${showRightPanel ? "" : " panel-collapsed"}`}>
+    <div className={`app${showRightPanel ? "" : " panel-collapsed"}${mobileWardrobeOpen ? " mobile-wardrobe-open" : ""}${mobilePhotoOpen ? " mobile-photo-open" : ""}`}>
       {/* HEADER */}
       <div className="header">
         <div className="header-logo">
@@ -1038,12 +1050,6 @@ export function TryOnStudio() {
       {/* MAIN CANVAS */}
       <div className="main">
         <div className="main-toolbar">
-          <div className="toolbar-title">
-            Outfit Studio
-            <span style={{ marginLeft: "12px", fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400 }}>
-              {wardrobe.length} items in wardrobe
-            </span>
-          </div>
           <div className="toolbar-actions">
             <button
               className="btn btn-ghost"
@@ -1064,7 +1070,7 @@ export function TryOnStudio() {
                 : <span style={{ display: "flex", alignItems: "center", gap: "8px" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>Generate outfit</span>
               }
             </button>
-            <button className="btn btn-ghost" onClick={() => setShowRightPanel(!showRightPanel)} title="Toggle panel" style={{ padding: "10px 12px" }}>
+            <button className="btn btn-ghost btn-toggle-panel" onClick={() => setShowRightPanel(!showRightPanel)} title="Toggle panel" style={{ padding: "10px 12px" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 {showRightPanel ? <polyline points="15 18 9 12 15 6"/> : <polyline points="9 18 15 12 9 6"/>}
               </svg>
@@ -1073,6 +1079,7 @@ export function TryOnStudio() {
         </div>
 
         <div className="canvas-area" id="tour-canvas">
+          <div key={activeTab} className="canvas-tab-wrapper" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", animation: `tabSlide${slideDir === "left" ? "FromRight" : "FromLeft"} 0.28s ease both` }}>
           {activeTab === "settings" && (
             <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "32px" }}>
             <div style={{ maxWidth: "520px" }}>
@@ -1430,6 +1437,7 @@ export function TryOnStudio() {
               </div>
             </div>
           ))}
+          </div>
         </div>
       </div>
 
@@ -1873,7 +1881,7 @@ export function TryOnStudio() {
       )}
 
       {/* FLOATING ASSISTANT */}
-      <div style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "12px", pointerEvents: "none" }}>
+      <div id="floating-assistant" className={activeTab === "studio" ? "studio-active" : ""} style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "12px", pointerEvents: "none" }}>
           <div style={{ width: "360px", height: "520px", background: "var(--bg-primary)", border: "1px solid var(--border-subtle)", borderRadius: "20px", boxShadow: "0 20px 60px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", overflow: "hidden", opacity: chatOpen ? 1 : 0, transform: chatOpen ? "translateY(0) scale(1)" : "translateY(18px) scale(0.93)", pointerEvents: chatOpen ? "all" : "none", transition: "opacity 0.28s ease, transform 0.35s cubic-bezier(0.34,1.2,0.64,1)", transformOrigin: "bottom right" }}>
             {/* Chat header */}
             <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-secondary)", gap: "8px" }}>
@@ -2034,6 +2042,26 @@ export function TryOnStudio() {
             </div>}
           </div>
 
+        {/* MOBILE: Wardrobe + Photo FABs — shown only on Studio tab via CSS */}
+        {activeTab === "studio" && <>
+          <button
+            className="mobile-fab"
+            onClick={() => { setMobileWardrobeOpen(v => !v); setMobilePhotoOpen(false); }}
+            style={{ width: "52px", height: "52px", borderRadius: "50%", background: mobileWardrobeOpen ? "var(--accent-color)" : "var(--bg-surface)", border: "1.5px solid var(--border-subtle)", cursor: "pointer", display: "none", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.14)", color: mobileWardrobeOpen ? "#fff" : "var(--text-primary)", pointerEvents: "auto", transition: "background 0.2s, color 0.2s" }}
+            title="Wardrobe"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+          </button>
+          <button
+            className="mobile-fab"
+            onClick={() => { setMobilePhotoOpen(v => !v); setMobileWardrobeOpen(false); }}
+            style={{ width: "52px", height: "52px", borderRadius: "50%", background: mobilePhotoOpen ? "var(--accent-color)" : "var(--bg-surface)", border: "1.5px solid var(--border-subtle)", cursor: "pointer", display: "none", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.14)", color: mobilePhotoOpen ? "#fff" : "var(--text-primary)", pointerEvents: "auto", transition: "background 0.2s, color 0.2s" }}
+            title="Photo"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </button>
+        </>}
+
         {/* Toggle button */}
         <button
           id="tour-chat"
@@ -2065,6 +2093,25 @@ export function TryOnStudio() {
         </div>
       )}
       {showTour && <OnboardingTour onDone={handleTourDone} />}
+
+      {/* MOBILE: overlay behind wardrobe drawer */}
+      <div className="mobile-wardrobe-overlay" onClick={() => { setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} />
+
+      {/* MOBILE: bottom action bar — Studio / History / Settings */}
+      <div className="mobile-action-bar" style={{ display: "none" }} id="mobile-action-bar">
+        <button onClick={() => { setActiveTab("studio"); }} className={activeTab === "studio" ? "active" : ""}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+          Studio
+        </button>
+        <button onClick={() => { setActiveTab("history"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "history" ? "active" : ""}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          History
+        </button>
+        <button onClick={() => { setActiveTab("settings"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "settings" ? "active" : ""}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+          Settings
+        </button>
+      </div>
     </div>
   );
 }
@@ -2257,6 +2304,7 @@ function OnboardingTour({ onDone }: { onDone: () => void }) {
           </div>
         </div>
       )}
+
     </div>
   );
 }

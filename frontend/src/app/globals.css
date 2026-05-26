@@ -302,6 +302,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   from { opacity: 0; transform: translateX(14px); }
   to   { opacity: 1; transform: translateX(0); }
 }
+@keyframes tabSlideFromRight {
+  from { opacity: 0; transform: translateX(48px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes tabSlideFromLeft {
+  from { opacity: 0; transform: translateX(-48px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
 @keyframes msgFromUser {
   from { opacity: 0; transform: translateX(18px) scale(0.95); }
   to   { opacity: 1; transform: translateX(0) scale(1); }
@@ -1102,3 +1110,223 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .flatlay-outer    { order: 3; position: relative; }
 .flatlay-bottom   { order: 4; }
 .flatlay-shoes    { order: 5; }
+
+/* ============================================================
+   MOBILE RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Single column layout */
+  .app {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: 56px 1fr !important;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .app.panel-collapsed {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Compact header */
+  .header {
+    padding: 0 14px;
+    gap: 8px;
+  }
+  .header-logo {
+    font-size: 17px;
+    white-space: nowrap;
+  }
+  /* Hide top nav — replaced by bottom action bar */
+  .header-nav { display: none; }
+  .header-user {
+    gap: 8px;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+  .header-user > div:first-child { display: none; }
+  .header-user > span { display: none; }
+
+  /* Left sidebar — hidden, shown as drawer */
+  .sidebar-left { display: none; }
+
+  /* Canvas — full width, scrollable */
+  .canvas-area {
+    grid-column: 1 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-bottom: 80px;
+    height: 100%;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+
+  /* Animation wrapper — flow element so canvas-area handles scroll */
+  .canvas-tab-wrapper {
+    position: relative !important;
+    inset: unset !important;
+    min-height: 100% !important;
+    width: 100% !important;
+    overflow-y: visible !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+
+  /* Settings/History/Outfits panels inside wrapper */
+  .canvas-tab-wrapper > div[style*="overflow-y"] {
+    position: relative !important;
+    inset: unset !important;
+    width: 100% !important;
+    overflow-y: visible !important;
+    padding: 20px 16px 40px;
+  }
+
+  /* Empty state — centered */
+  .canvas-tab-wrapper > div[style*="flex-direction: column"],
+  .canvas-tab-wrapper > div[style*="flexDirection: column"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    width: 100%;
+  }
+
+  /* Right sidebar — hidden by default, shown as drawer */
+  .sidebar-right {
+    display: none !important;
+  }
+  .mobile-photo-open .sidebar-right {
+    display: flex !important;
+    position: fixed;
+    bottom: 72px;
+    left: 0;
+    right: 0;
+    height: 70vh;
+    z-index: 200;
+    border-left: none;
+    border-top: 1px solid var(--border-subtle);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -8px 32px rgba(60,40,20,0.16);
+    padding: 20px 16px 24px;
+    overflow-y: auto;
+    background: var(--bg-surface);
+  }
+
+  /* Toolbar buttons wrap */
+  .canvas-area > div:first-child {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* Mobile wardrobe drawer */
+  .sidebar-left { display: none; }
+  .mobile-wardrobe-open .sidebar-left {
+    display: flex;
+    position: fixed;
+    bottom: 72px;
+    left: 0;
+    right: 0;
+    height: 55vh;
+    z-index: 200;
+    border-right: none;
+    border-top: 1px solid var(--border-subtle);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -8px 32px rgba(60,40,20,0.16);
+    padding: 16px 0 24px;
+    overflow-y: auto;
+    background: var(--bg-surface);
+  }
+
+  /* Overlay */
+  .mobile-wardrobe-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 199;
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  .mobile-wardrobe-open .mobile-wardrobe-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Toolbar — hide title text and toggle button on mobile */
+  .main-toolbar { flex-wrap: wrap; gap: 6px; padding: 8px 12px; min-height: unset; }
+  .toolbar-title { display: none; }
+  .btn-toggle-panel { display: none !important; }
+
+  /* Bottom action bar */
+  #mobile-action-bar { display: flex !important; }
+  .mobile-action-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 198;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-subtle);
+    padding: 8px 10px 20px;
+    gap: 6px;
+    justify-content: space-around;
+  }
+  .mobile-action-bar button {
+    flex: 1;
+    padding: 8px 4px;
+    border-radius: 10px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .mobile-action-bar button.active {
+    background: var(--brand-primary);
+    color: #fff;
+    border-color: var(--brand-primary);
+  }
+
+  /* Floating FAB stack — above action bar, hidden on non-studio tabs */
+  #floating-assistant {
+    bottom: 80px !important;
+    right: 12px !important;
+  }
+  #floating-assistant:not(.studio-active) {
+    display: none !important;
+  }
+
+  /* Mobile Wardrobe/Photo FABs — show on mobile */
+  .mobile-fab {
+    display: flex !important;
+    pointer-events: auto !important;
+  }
+
+  /* Chat window — to the left of FAB stack, above bottom bar */
+  #floating-assistant > div:first-child {
+    position: fixed !important;
+    bottom: 80px !important;
+    left: 12px !important;
+    right: 76px !important;
+    width: auto !important;
+    height: 60vh !important;
+    transform-origin: bottom left !important;
+  }
+
+  /* Cards */
+  .card-item { width: 100px; }
+
+  /* Forms — prevent iOS zoom */
+  .form-input { font-size: 16px; }
+
+  .analysis-card { padding: 14px; }
+}
+
+@media (max-width: 480px) {
+  .header-logo { font-size: 15px; }
+  .card-item { width: 88px; }
+}
