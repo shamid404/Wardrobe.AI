@@ -20,7 +20,7 @@ from ..config import GOOGLE_CLIENT_ID
 from ..db.database import get_db
 from ..db.memory_store import hash_password, verify_password
 from ..db.models import User, WardrobeItem
-from ..models.schemas import UserRegister, UserLogin, Token, UserOut, SendVerificationCode, VerifyEmailCode
+from ..models.schemas import UserRegister, UserLogin, Token, UserOut, SendVerificationCode, VerifyEmailCode, UserUpdate
 from ..services.minio_service import upload_file, delete_file
 from ..services.email_service import send_verification_email
 
@@ -236,6 +236,15 @@ def delete_account(
 @router.get("/me", response_model=UserOut)
 def me(user=Depends(get_current_user), db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.id == user["id"]).first()
+    return UserOut(id=db_user.id, name=db_user.name, email=db_user.email, avatar_url=db_user.avatar_url)
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(data: UserUpdate, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.id == user["id"]).first()
+    db_user.name = data.name.strip()
+    db.commit()
+    db.refresh(db_user)
     return UserOut(id=db_user.id, name=db_user.name, email=db_user.email, avatar_url=db_user.avatar_url)
 
 

@@ -33,6 +33,9 @@ class Token(BaseModel):
     token_type: str = "bearer"
     user: UserOut
 
+class UserUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
 
 # ── Wardrobe ──────────────────────────────
 

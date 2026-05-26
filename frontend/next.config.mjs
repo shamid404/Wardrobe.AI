@@ -12,6 +12,7 @@ const nextConfig = {
       { source: "/history", destination: `${BACKEND_URL}/history` },
       { source: "/api/wardrobe", destination: `${BACKEND_URL}/wardrobe` },
       { source: "/api/wardrobe/:path*", destination: `${BACKEND_URL}/wardrobe/:path*` },
+      { source: "/api/auth/me", destination: `${BACKEND_URL}/auth/me` },
       { source: "/api/auth/:path*", destination: `${BACKEND_URL}/auth/:path*` },
       { source: "/static/:path*", destination: `${BACKEND_URL}/static/:path*` },
       { source: "/proxy-image", destination: `${BACKEND_URL}/proxy-image` },

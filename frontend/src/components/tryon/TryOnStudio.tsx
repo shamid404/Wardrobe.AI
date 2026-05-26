@@ -1132,7 +1132,24 @@ export function TryOnStudio() {
                       <button
                         className="btn btn-primary"
                         disabled={!settingsName.trim()}
-                        onClick={() => { setUserName(settingsName.trim()); setSettingsName(""); showToast("✓ Name updated"); }}
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/auth/me", {
+                              method: "PATCH",
+                              headers: { ...authHeaders(), "Content-Type": "application/json" },
+                              body: JSON.stringify({ name: settingsName.trim() }),
+                            });
+                            if (!res.ok) throw new Error();
+                            const updated = await res.json();
+                            setUserName(updated.name);
+                            const currentUser = getUser();
+                            if (currentUser) saveUser({ ...currentUser, name: updated.name });
+                            setSettingsName("");
+                            showToast("✓ Name updated");
+                          } catch {
+                            showToast("❌ Failed to update name");
+                          }
+                        }}
                       >
                         Save
                       </button>
