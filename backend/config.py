@@ -6,7 +6,13 @@ load_dotenv()
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://wardrobe_user:wardrobe_pass@localhost:5432/wardrobe")
+_raw_db_url = os.getenv("DATABASE_URL", "postgresql+psycopg://wardrobe_user:wardrobe_pass@localhost:5432/wardrobe")
+# Railway provides postgresql:// — rewrite to use psycopg3 driver
+DATABASE_URL = (
+    _raw_db_url
+    .replace("postgres://", "postgresql+psycopg://", 1)
+    .replace("postgresql://", "postgresql+psycopg://", 1)
+)
 MINIO_ENDPOINT   = os.getenv("MINIO_ENDPOINT", "localhost:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "wardrobe_minio")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "wardrobe_minio_secret")
