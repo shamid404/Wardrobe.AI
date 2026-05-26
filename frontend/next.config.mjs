@@ -1,25 +1,26 @@
 /** @type {import('next').NextConfig} */
+const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
+
 const nextConfig = {
   images: {
     domains: ["images.unsplash.com"],
   },
   async rewrites() {
     return [
-      // Proxy legacy UI calls to FastAPI.
-      { source: "/remove-background", destination: "http://127.0.0.1:8000/remove-background" },
-      { source: "/generate-tryon", destination: "http://127.0.0.1:8000/generate-tryon" },
-      { source: "/history", destination: "http://127.0.0.1:8000/history" },
-      { source: "/api/wardrobe", destination: "http://127.0.0.1:8000/wardrobe" },
-      { source: "/api/wardrobe/:path*", destination: "http://127.0.0.1:8000/wardrobe/:path*" },
-      { source: "/api/auth/:path*", destination: "http://127.0.0.1:8000/auth/:path*" },
-      { source: "/static/:path*", destination: "http://127.0.0.1:8000/static/:path*" },
-      { source: "/proxy-image", destination: "http://127.0.0.1:8000/proxy-image" },
-      { source: "/analyze-clothing", destination: "http://127.0.0.1:8000/analyze-clothing" },
-      { source: "/weather", destination: "http://127.0.0.1:8000/weather" },
-      { source: "/assistant/chat", destination: "http://127.0.0.1:8000/assistant/chat" },
-      { source: "/api/outfits", destination: "http://127.0.0.1:8000/outfits" },
-      { source: "/api/outfits/:path*", destination: "http://127.0.0.1:8000/outfits/:path*" },
-      { source: "/api/chat/:path*", destination: "http://127.0.0.1:8000/chat/:path*" },
+      { source: "/remove-background", destination: `${BACKEND_URL}/remove-background` },
+      { source: "/generate-tryon", destination: `${BACKEND_URL}/generate-tryon` },
+      { source: "/history", destination: `${BACKEND_URL}/history` },
+      { source: "/api/wardrobe", destination: `${BACKEND_URL}/wardrobe` },
+      { source: "/api/wardrobe/:path*", destination: `${BACKEND_URL}/wardrobe/:path*` },
+      { source: "/api/auth/:path*", destination: `${BACKEND_URL}/auth/:path*` },
+      { source: "/static/:path*", destination: `${BACKEND_URL}/static/:path*` },
+      { source: "/proxy-image", destination: `${BACKEND_URL}/proxy-image` },
+      { source: "/analyze-clothing", destination: `${BACKEND_URL}/analyze-clothing` },
+      { source: "/weather", destination: `${BACKEND_URL}/weather` },
+      { source: "/assistant/chat", destination: `${BACKEND_URL}/assistant/chat` },
+      { source: "/api/outfits", destination: `${BACKEND_URL}/outfits` },
+      { source: "/api/outfits/:path*", destination: `${BACKEND_URL}/outfits/:path*` },
+      { source: "/api/chat/:path*", destination: `${BACKEND_URL}/chat/:path*` },
     ];
   },
 };
