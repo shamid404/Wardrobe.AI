@@ -1,72 +1,43 @@
-import io
-import os
+import base64
 import uuid
-from typing import Optional
 
-import boto3
-from botocore.client import Config
-from botocore.exceptions import ClientError
+import cloudinary
+import cloudinary.uploader
 
-from ..config import MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET
+from ..config import CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
 
-_s3 = boto3.client(
-    "s3",
-    endpoint_url=f"http://{MINIO_ENDPOINT}",
-    aws_access_key_id=MINIO_ACCESS_KEY,
-    aws_secret_access_key=MINIO_SECRET_KEY,
-    config=Config(signature_version="s3v4"),
-    region_name="us-east-1",
+cloudinary.config(
+    cloud_name=CLOUDINARY_CLOUD_NAME,
+    api_key=CLOUDINARY_API_KEY,
+    api_secret=CLOUDINARY_API_SECRET,
+    secure=True,
 )
 
 
-_EXT_MAP = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
-
-_MINIO_PUBLIC = os.getenv("MINIO_PUBLIC_BUCKET", "true").lower() == "true"
-
-
-def ensure_bucket() -> None:
-    """Create bucket if it doesn't exist yet."""
-    try:
-        _s3.head_bucket(Bucket=MINIO_BUCKET)
-    except ClientError:
-        _s3.create_bucket(Bucket=MINIO_BUCKET)
-        if _MINIO_PUBLIC:
-            # Public only in dev. In production set MINIO_PUBLIC_BUCKET=false
-            # and serve images via presigned URLs.
-            _s3.put_bucket_policy(
-                Bucket=MINIO_BUCKET,
-                Policy=f'''{{
-                    "Version":"2012-10-17",
-                    "Statement":[{{
-                        "Effect":"Allow",
-                        "Principal":"*",
-                        "Action":"s3:GetObject",
-                        "Resource":"arn:aws:s3:::{MINIO_BUCKET}/*"
-                    }}]
-                }}''',
-            )
-
-
 def upload_file(file_bytes: bytes, content_type: str, folder: str = "wardrobe") -> str:
-    """Upload bytes to MinIO, return public URL."""
-    ensure_bucket()
-    ext = _EXT_MAP.get(content_type, "jpg")
-    key = f"{folder}/{uuid.uuid4().hex}.{ext}"
-    _s3.put_object(
-        Bucket=MINIO_BUCKET,
-        Key=key,
-        Body=io.BytesIO(file_bytes),
-        ContentType=content_type,
+    """Upload bytes to Cloudinary, return public URL."""
+    raw_b64 = base64.b64encode(file_bytes).decode("utf-8")
+    result = cloudinary.uploader.upload(
+        f"data:{content_type};base64,{raw_b64}",
+        public_id=f"{folder}/{uuid.uuid4().hex}",
+        overwrite=True,
+        resource_type="image",
     )
-    return f"http://{MINIO_ENDPOINT}/{MINIO_BUCKET}/{key}"
+    return result["secure_url"]
 
 
 def delete_file(url: str) -> None:
-    """Delete file from MinIO by its full URL."""
+    """Delete file from Cloudinary by its URL."""
     try:
-        prefix = f"http://{MINIO_ENDPOINT}/{MINIO_BUCKET}/"
-        if url.startswith(prefix):
-            key = url[len(prefix):]
-            _s3.delete_object(Bucket=MINIO_BUCKET, Key=key)
-    except ClientError:
+        # Extract public_id from URL: .../upload/v123/<public_id>.<ext>
+        if "cloudinary.com" not in url:
+            return
+        path = url.split("/upload/")[-1]
+        # Remove version segment (v1234567/) if present
+        parts = path.split("/")
+        if parts[0].startswith("v") and parts[0][1:].isdigit():
+            parts = parts[1:]
+        public_id = "/".join(parts).rsplit(".", 1)[0]
+        cloudinary.uploader.destroy(public_id, resource_type="image")
+    except Exception:
         pass

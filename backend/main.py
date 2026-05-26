@@ -10,7 +10,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from .config import MINIO_ENDPOINT, ENVIRONMENT, ALLOWED_ORIGINS
+from .config import ENVIRONMENT, ALLOWED_ORIGINS
 from .auth import get_current_user
 
 from .routers import wardrobe, tryon, avatar, auth_router, assistant, outfits, chat_sessions
@@ -114,15 +114,14 @@ def get_weather(request: Request, lat: float, lon: float):
         raise HTTPException(status_code=502, detail="Weather service unavailable")
 
 
-_ALLOWED_PROXY_HOSTS = {MINIO_ENDPOINT.split(":")[0], MINIO_ENDPOINT}
-
 @app.get("/proxy-image")
 def proxy_image(url: str, _user=Depends(get_current_user)):
-    """Proxy MinIO images to avoid browser CORS restrictions on canvas."""
+    """Proxy external images to avoid browser CORS restrictions on canvas."""
     import requests
     parsed = urlparse(url)
-    host = parsed.netloc or parsed.path.split("/")[0]
-    if host not in _ALLOWED_PROXY_HOSTS:
+    allowed_hosts = {"res.cloudinary.com"}
+    host = parsed.netloc
+    if not any(host.endswith(h) for h in allowed_hosts):
         raise HTTPException(status_code=400, detail="URL not allowed.")
     try:
         r = requests.get(url, timeout=30)
