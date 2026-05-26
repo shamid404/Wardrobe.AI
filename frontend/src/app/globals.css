@@ -1330,3 +1330,58 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   .header-logo { font-size: 15px; }
   .card-item { width: 88px; }
 }
+
+/* ============================================================
+   LANDING PAGE — MOBILE RESPONSIVE
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+@media (max-width: 768px) {
+  .landing-nav { padding: 0 14px !important; }
+  .landing-nav-btns { gap: 6px !important; }
+  .landing-nav-btns button { padding: 6px 12px !important; font-size: 13px !important; }
+
+  .landing-hero {
+    flex-direction: column !important;
+    padding: 96px 20px 56px !important;
+    gap: 36px !important;
+    align-items: flex-start !important;
+    min-height: auto !important;
+  }
+  .landing-hero-text { flex: none !important; width: 100% !important; }
+  .landing-hero-image { flex: none !important; width: 100% !important; max-width: 100% !important; }
+  .landing-hero-badge { display: none !important; }
+
+  .landing-mockup-section { display: none !important; }
+
+  .landing-comparison {
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+  }
+  .landing-comparison > div:first-child {
+    border-radius: 20px 20px 0 0 !important;
+    border-right: 1px solid #E8DFD2 !important;
+    border-bottom: none !important;
+  }
+  .landing-comparison-after { border-radius: 0 0 20px 20px !important; }
+  .landing-comparison-divider {
+    width: 100% !important;
+    height: 40px !important;
+    background: linear-gradient(to bottom, #E8DFD2, #E8DFD2) !important;
+    background-size: 1px 100% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+  }
+
+  .landing-tryon-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
+
+  .landing-footer {
+    padding: 24px 20px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .landing-cta-inner { padding: 48px 24px !important; }
+}

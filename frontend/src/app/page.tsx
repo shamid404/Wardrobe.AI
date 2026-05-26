@@ -178,7 +178,7 @@ export default function LandingPage() {
     <div style={{ fontFamily: "var(--font-sans, Inter, sans-serif)", background: "#F4ECE0", color: "#2D2218", minHeight: "100vh", overflowX: "hidden" }}>
 
       {/* ── NAV ─────────────────────────────────────────────────── */}
-      <motion.nav style={{
+      <motion.nav className="landing-nav" style={{
         position: "fixed", top: navTop, left: navSide, right: navSide, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", height: "60px",
         borderRadius: navRadius,
@@ -199,7 +199,7 @@ export default function LandingPage() {
           initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
-          style={{ display: "flex", gap: "10px" }}
+          className="landing-nav-btns" style={{ display: "flex", gap: "10px" }}
         >
           <NavBtn onClick={() => router.push("/login")} outline>Sign in</NavBtn>
           <NavBtn onClick={() => router.push("/register")}>Get started</NavBtn>
@@ -207,7 +207,7 @@ export default function LandingPage() {
       </motion.nav>
 
       {/* ── HERO ────────────────────────────────────────────────── */}
-      <section style={{ minHeight: "100vh", display: "flex", alignItems: "center", padding: "120px 48px 80px", position: "relative", overflow: "hidden", maxWidth: "1300px", margin: "0 auto", gap: "64px" }}>
+      <section className="landing-hero" style={{ minHeight: "100vh", display: "flex", alignItems: "center", padding: "120px 48px 80px", position: "relative", overflow: "hidden", maxWidth: "1300px", margin: "0 auto", gap: "64px" }}>
         {/* Orbs */}
         <motion.div aria-hidden animate={{ y: [0, -18, 0], x: [0, 8, 0] }} transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
           style={{ position: "absolute", top: "10%", left: "-100px", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle,rgba(200,130,109,0.15) 0%,transparent 70%)", pointerEvents: "none" }} />
@@ -215,7 +215,7 @@ export default function LandingPage() {
           style={{ position: "absolute", bottom: "5%", right: "30%", width: 360, height: 360, borderRadius: "50%", background: "radial-gradient(circle,rgba(124,155,192,0.13) 0%,transparent 70%)", pointerEvents: "none" }} />
 
         {/* Left — text */}
-        <div style={{ flex: "1 1 480px", minWidth: 0 }}>
+        <div className="landing-hero-text" style={{ flex: "1 1 480px", minWidth: 0 }}>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "#C8826D", background: "rgba(200,130,109,0.1)", border: "1px solid rgba(200,130,109,0.28)", borderRadius: "20px", padding: "5px 14px", marginBottom: "32px" }}>
             <motion.span animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
@@ -261,7 +261,7 @@ export default function LandingPage() {
           initial={{ opacity: 0, x: 40, scale: 0.96 }}
           animate={{ opacity: 1, x: 0, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-          style={{ flex: "1 1 420px", minWidth: 0, position: "relative", maxWidth: "520px" }}
+          className="landing-hero-image" style={{ flex: "1 1 420px", minWidth: 0, position: "relative", maxWidth: "520px" }}
         >
           <div style={{ borderRadius: "24px", overflow: "hidden", boxShadow: "0 32px 80px rgba(60,40,20,0.18)", aspectRatio: "4/5", position: "relative" }}>
             <img
@@ -276,7 +276,7 @@ export default function LandingPage() {
           <motion.div
             animate={{ y: [0, -7, 0] }}
             transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-            style={{ position: "absolute", top: "24px", left: "-20px", background: "#fff", borderRadius: "14px", padding: "10px 16px", boxShadow: "0 8px 28px rgba(60,40,20,0.14)", display: "flex", alignItems: "center", gap: "10px" }}
+            className="landing-hero-badge" style={{ position: "absolute", top: "24px", left: "-20px", background: "#fff", borderRadius: "14px", padding: "10px 16px", boxShadow: "0 8px 28px rgba(60,40,20,0.14)", display: "flex", alignItems: "center", gap: "10px" }}
           >
             <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(200,130,109,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#C8826D" }}><IconSparkle /></div>
             <div>
@@ -289,7 +289,7 @@ export default function LandingPage() {
           <motion.div
             animate={{ y: [0, 8, 0] }}
             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-            style={{ position: "absolute", bottom: "32px", right: "-16px", background: "#2D2218", borderRadius: "14px", padding: "12px 18px", boxShadow: "0 8px 28px rgba(45,34,24,0.25)", display: "flex", alignItems: "center", gap: "10px" }}
+            className="landing-hero-badge" style={{ position: "absolute", bottom: "32px", right: "-16px", background: "#2D2218", borderRadius: "14px", padding: "12px 18px", boxShadow: "0 8px 28px rgba(45,34,24,0.25)", display: "flex", alignItems: "center", gap: "10px" }}
           >
             <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#6B9E72", flexShrink: 0 }} />
             <div>
@@ -330,7 +330,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── APP MOCKUP ──────────────────────────────────────────── */}
-      <section style={{ padding: "100px 24px", background: "#F4ECE0", overflow: "hidden" }}>
+      <section className="landing-mockup-section" style={{ padding: "100px 24px", background: "#F4ECE0", overflow: "hidden" }}>
         <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
           <FadeIn>
             <div style={{ textAlign: "center", marginBottom: "64px" }}>
@@ -462,7 +462,7 @@ export default function LandingPage() {
             transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
             style={{ position: "absolute", inset: "-2px", borderRadius: "30px", background: "conic-gradient(from 0deg, transparent 60%, rgba(200,130,109,0.4) 75%, rgba(124,155,192,0.3) 85%, transparent 95%)", pointerEvents: "none", zIndex: 0 }}
           />
-          <div style={{ position: "relative", zIndex: 1, padding: "72px 48px", background: "linear-gradient(135deg,#FAF5EE 0%,#F4ECE0 100%)", border: "1px solid rgba(200,130,109,0.2)", borderRadius: "28px", boxShadow: "0 8px 48px rgba(60,40,20,0.08)", overflow: "hidden" }}>
+          <div className="landing-cta-inner" style={{ position: "relative", zIndex: 1, padding: "72px 48px", background: "linear-gradient(135deg,#FAF5EE 0%,#F4ECE0 100%)", border: "1px solid rgba(200,130,109,0.2)", borderRadius: "28px", boxShadow: "0 8px 48px rgba(60,40,20,0.08)", overflow: "hidden" }}>
             <motion.div
               aria-hidden
               animate={{ y: [0, -16, 0], x: [0, 10, 0] }}
@@ -509,7 +509,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FOOTER ──────────────────────────────────────────────── */}
-      <footer style={{ borderTop: "1px solid #E8DFD2", background: "#FAF5EE", padding: "32px 48px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
+      <footer className="landing-footer" style={{ borderTop: "1px solid #E8DFD2", background: "#FAF5EE", padding: "32px 48px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
         <div style={{ fontFamily: "var(--font-serif,'Playfair Display',serif)", fontSize: "17px", fontWeight: 700, letterSpacing: "0.04em" }}>
           WARDROBE<span style={{ color: "#C8826D" }}>.AI</span>
         </div>
@@ -524,9 +524,6 @@ export default function LandingPage() {
         <div style={{ fontSize: "13px", color: "#A89A8A" }}>© {new Date().getFullYear()} Wardrobe.AI</div>
       </footer>
 
-      <style>{`
-        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
-      `}</style>
     </div>
   );
 }
@@ -618,7 +615,7 @@ function AppMockup() {
         </div>
 
         {/* App UI */}
-        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 240px", minHeight: "440px" }}>
+        <div className="landing-mockup-grid" style={{ display: "grid", gridTemplateColumns: "220px 1fr 240px", minHeight: "440px" }}>
 
           {/* Sidebar — wardrobe */}
           <div style={{ borderRight: "1px solid #E8DFD2", padding: "20px 0", background: "#FAF5EE" }}>
@@ -740,7 +737,7 @@ function ComparisonSection() {
     "Try on any combination before wearing",
   ];
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: "0", alignItems: "stretch" }}>
+    <div className="landing-comparison" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: "0", alignItems: "stretch" }}>
       {/* Before */}
       <motion.div
         initial="hidden"
@@ -763,7 +760,7 @@ function ComparisonSection() {
       </motion.div>
 
       {/* Divider */}
-      <div style={{ width: "1px", background: "linear-gradient(to bottom,transparent,#E8DFD2 20%,#E8DFD2 80%,transparent)", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div className="landing-comparison-divider" style={{ width: "1px", background: "linear-gradient(to bottom,transparent,#E8DFD2 20%,#E8DFD2 80%,transparent)", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <motion.div
           animate={{ scale: [1, 1.08, 1] }}
           transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
@@ -777,6 +774,7 @@ function ComparisonSection() {
         whileInView="visible"
         viewport={{ once: true, margin: "-40px" }}
         variants={listVariants}
+        className="landing-comparison-after"
         style={{ background: "#2D2218", borderRadius: "0 20px 20px 0", padding: "36px 32px" }}
       >
         <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#6B9E72", background: "rgba(107,158,114,0.12)", borderRadius: "8px", padding: "5px 12px", marginBottom: "28px" }}>
@@ -949,7 +947,7 @@ function TryOnShowcase() {
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" }}>
+      <div className="landing-tryon-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" }}>
         {(["before", "after"] as const).map((side) => {
           const p = panels[side];
           const isActive = active === side;
