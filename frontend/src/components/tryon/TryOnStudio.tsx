@@ -2047,6 +2047,7 @@ export function TryOnStudio() {
         {/* MOBILE: Wardrobe + Photo FABs — shown only on Studio tab via CSS */}
         {activeTab === "studio" && <>
           <button
+            id="tour-wardrobe-mobile"
             className="mobile-fab"
             onClick={() => { setMobileWardrobeOpen(v => !v); setMobilePhotoOpen(false); }}
             style={{ width: "52px", height: "52px", borderRadius: "50%", background: mobileWardrobeOpen ? "var(--accent-color)" : "var(--bg-surface)", border: "1.5px solid var(--border-subtle)", cursor: "pointer", display: "none", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.14)", color: mobileWardrobeOpen ? "#fff" : "var(--text-primary)", pointerEvents: "auto", transition: "background 0.2s, color 0.2s" }}
@@ -2119,30 +2120,32 @@ export function TryOnStudio() {
 }
 
 // ─── OnboardingTour ──────────────────────────────────────────────
-const TOUR_STEPS = [
+type TourPos = "right" | "left" | "bottom" | "top";
+const TOUR_STEPS: { id: string; mobileId?: string; title: string; sub: string; pos: TourPos }[] = [
   {
     id: "tour-wardrobe",
+    mobileId: "tour-wardrobe-mobile",
     title: "Your Wardrobe",
     sub: "All your clothes live here. Filter by category, color, or season — then click any item to add it to the canvas.",
-    pos: "right" as const,
+    pos: "right",
   },
   {
     id: "tour-canvas",
     title: "Try-On Canvas",
     sub: "Compose your outfit here. Add items from the left, then click Try On to see the virtual try-on result.",
-    pos: "left" as const,
+    pos: "left",
   },
   {
     id: "tour-tabs",
     title: "Studio · History · Outfits",
     sub: "Switch between your workspace, past try-on results, and saved outfits using the navigation above.",
-    pos: "bottom" as const,
+    pos: "bottom",
   },
   {
     id: "tour-chat",
     title: "AI Stylist",
     sub: "Your personal fashion advisor. Ask for outfit ideas, weather-based suggestions, and styling tips anytime.",
-    pos: "left" as const,
+    pos: "left",
   },
 ];
 
@@ -2170,10 +2173,25 @@ function OnboardingTour({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     if (!vw) return;
-    const el = document.getElementById(TOUR_STEPS[step].id);
-    if (!el) return;
+    const isMobile = vw < 768;
+    const stepDef = TOUR_STEPS[step];
     const PAD = 10;
-    const r = el.getBoundingClientRect();
+
+    let el: HTMLElement | null = document.getElementById(stepDef.id);
+    let r = el?.getBoundingClientRect();
+
+    // On mobile, try mobileId fallback when primary element is hidden
+    if (isMobile && stepDef.mobileId && (!r || r.width === 0)) {
+      el = document.getElementById(stepDef.mobileId);
+      r = el?.getBoundingClientRect();
+    }
+
+    // Skip hidden/missing elements
+    if (!r || r.width === 0) {
+      if (step + 1 < TOUR_STEPS.length) { setStep(s => s + 1); } else { onDone(); }
+      return;
+    }
+
     setRect(r);
 
     const target = { x: r.left - PAD, y: r.top - PAD, w: r.width + PAD * 2, h: r.height + PAD * 2 };
@@ -2212,21 +2230,22 @@ function OnboardingTour({ onDone }: { onDone: () => void }) {
     }
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [step, vw, vh]);
+  }, [step, vw, vh, onDone]);
 
   if (!vw) return null;
 
+  const isMobile = vw < 768;
   const PAD = 10;
   const R = 14;
-  const TW = 284;
+  const TW = Math.min(284, vw - 32);
   let tx = 0, ty = 0;
   if (rect) {
     const sx = rect.left - PAD, sy = rect.top - PAD, sw = rect.width + PAD * 2, sh = rect.height + PAD * 2;
-    const { pos } = TOUR_STEPS[step];
-    if (pos === "right")       { tx = sx + sw + 20; ty = sy + sh / 2 - 90; }
-    else if (pos === "left")   { tx = sx - TW - 20; ty = sy + sh / 2 - 90; }
-    else if (pos === "bottom") { tx = sx + sw / 2 - TW / 2; ty = sy + sh + 20; }
-    else                       { tx = sx + sw / 2 - TW / 2; ty = sy - 200; }
+    const effectivePos: TourPos = isMobile ? "bottom" : TOUR_STEPS[step].pos;
+    if (effectivePos === "right")       { tx = sx + sw + 20; ty = sy + sh / 2 - 90; }
+    else if (effectivePos === "left")   { tx = sx - TW - 20; ty = sy + sh / 2 - 90; }
+    else if (effectivePos === "bottom") { tx = sx + sw / 2 - TW / 2; ty = sy + sh + 20; }
+    else                                { tx = sx + sw / 2 - TW / 2; ty = sy - 200; }
     tx = Math.max(16, Math.min(vw - TW - 16, tx));
     ty = Math.max(16, Math.min(vh - 210, ty));
   }
