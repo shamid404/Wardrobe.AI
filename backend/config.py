@@ -25,12 +25,8 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")]
 
-# SMTP (email verification)
-SMTP_HOST     = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT     = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER     = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-SMTP_FROM     = os.getenv("SMTP_FROM", "")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+SMTP_FROM      = os.getenv("SMTP_FROM", "onboarding@resend.dev")
 
 # JWT
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
