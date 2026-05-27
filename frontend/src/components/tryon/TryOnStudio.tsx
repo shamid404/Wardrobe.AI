@@ -1204,7 +1204,7 @@ export function TryOnStudio() {
                     <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>Onboarding tour</span>
                     <button
                       className="btn btn-ghost"
-                      onClick={() => { localStorage.removeItem("wardrobe_tour_done_v1"); setShowTour(true); showToast("✓ Tour reset"); }}
+                      onClick={() => { localStorage.removeItem("wardrobe_tour_done_v1"); setActiveTab("studio"); setShowTour(true); showToast("✓ Tour reset"); }}
                       style={{ fontSize: "11px" }}
                     >
                       Replay
@@ -2110,6 +2110,10 @@ export function TryOnStudio() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           History
         </button>
+        <button onClick={() => { setActiveTab("outfits"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "outfits" ? "active" : ""}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/></svg>
+          Outfits
+        </button>
         <button onClick={() => { setActiveTab("settings"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "settings" ? "active" : ""}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
           Settings
@@ -2121,7 +2125,7 @@ export function TryOnStudio() {
 
 // ─── OnboardingTour ──────────────────────────────────────────────
 type TourPos = "right" | "left" | "bottom" | "top";
-const TOUR_STEPS: { id: string; mobileId?: string; title: string; sub: string; pos: TourPos }[] = [
+const TOUR_STEPS: { id: string; mobileId?: string; mobilePos?: TourPos; title: string; sub: string; pos: TourPos }[] = [
   {
     id: "tour-wardrobe",
     mobileId: "tour-wardrobe-mobile",
@@ -2143,9 +2147,10 @@ const TOUR_STEPS: { id: string; mobileId?: string; title: string; sub: string; p
   },
   {
     id: "tour-chat",
+    mobilePos: "top",
     title: "AI Stylist",
     sub: "Your personal fashion advisor. Ask for outfit ideas, weather-based suggestions, and styling tips anytime.",
-    pos: "left",
+    pos: "top",
   },
 ];
 
@@ -2241,7 +2246,7 @@ function OnboardingTour({ onDone }: { onDone: () => void }) {
   let tx = 0, ty = 0;
   if (rect) {
     const sx = rect.left - PAD, sy = rect.top - PAD, sw = rect.width + PAD * 2, sh = rect.height + PAD * 2;
-    const effectivePos: TourPos = isMobile ? "bottom" : TOUR_STEPS[step].pos;
+    const effectivePos: TourPos = isMobile ? (TOUR_STEPS[step].mobilePos ?? "bottom") : TOUR_STEPS[step].pos;
     if (effectivePos === "right")       { tx = sx + sw + 20; ty = sy + sh / 2 - 90; }
     else if (effectivePos === "left")   { tx = sx - TW - 20; ty = sy + sh / 2 - 90; }
     else if (effectivePos === "bottom") { tx = sx + sw / 2 - TW / 2; ty = sy + sh + 20; }
