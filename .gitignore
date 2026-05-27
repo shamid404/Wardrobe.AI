@@ -27,6 +27,10 @@ Thumbs.db
 frontend/.next/
 frontend/node_modules/
 
+# TMA (Vite)
+tma/node_modules/
+tma/dist/
+
 # Windows crash dumps
 *.stackdump
 

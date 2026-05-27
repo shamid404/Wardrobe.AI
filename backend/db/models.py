@@ -16,6 +16,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     avatar_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    telegram_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     wardrobe_items: Mapped[list["WardrobeItem"]] = relationship("WardrobeItem", back_populates="user", cascade="all, delete-orphan")

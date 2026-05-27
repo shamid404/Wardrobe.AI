@@ -16,7 +16,7 @@ from google.auth.transport import requests as google_requests
 
 from fastapi.security import HTTPAuthorizationCredentials
 from ..auth import create_access_token, get_current_user, revoke_token, security
-from ..config import GOOGLE_CLIENT_ID
+from ..config import GOOGLE_CLIENT_ID, TELEGRAM_BOT_TOKEN
 from ..db.database import get_db
 from ..db.memory_store import hash_password, verify_password
 from ..db.models import User, WardrobeItem
@@ -193,6 +193,79 @@ def google_auth(request: Request, body: dict, db: Session = Depends(get_db)):
         for item in _DEFAULT_ITEMS:
             db.add(WardrobeItem(
                 id=f"item_{uuid_lib.uuid4().hex[:8]}",
+                user_id=user.id,
+                name=item["name"],
+                category=item["category"],
+                brand=item["brand"],
+                size=item["size"],
+                image_url=f"/static/defaults/{item['image_file']}",
+            ))
+        db.commit()
+    else:
+        if avatar and not user.avatar_url:
+            user.avatar_url = avatar
+            db.commit()
+
+    db.refresh(user)
+    token = create_access_token(user.id)
+    return Token(access_token=token, user=UserOut(id=user.id, name=user.name, email=user.email, avatar_url=user.avatar_url))
+
+
+@router.post("/telegram", response_model=Token)
+@limiter.limit("20/minute")
+def telegram_auth(request: Request, body: dict, db: Session = Depends(get_db)):
+    """Authenticate via Telegram Mini App initData."""
+    import hmac
+    import hashlib
+    import json as _json
+    from urllib.parse import parse_qsl
+
+    init_data = body.get("initData", "")
+    if not init_data:
+        raise HTTPException(status_code=400, detail="Missing initData")
+    if not TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=500, detail="Telegram bot not configured")
+
+    parsed = dict(parse_qsl(init_data, keep_blank_values=True))
+    received_hash = parsed.pop("hash", "")
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
+    secret_key = hmac.new(b"WebAppData", TELEGRAM_BOT_TOKEN.encode(), hashlib.sha256).digest()
+    computed_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(computed_hash, received_hash):
+        raise HTTPException(status_code=401, detail="Invalid initData signature")
+
+    try:
+        tg_user = _json.loads(parsed.get("user", "{}"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid user data in initData")
+
+    tg_id = str(tg_user.get("id", ""))
+    if not tg_id:
+        raise HTTPException(status_code=400, detail="No user id in initData")
+
+    first = tg_user.get("first_name", "")
+    last = tg_user.get("last_name", "")
+    name = (first + (" " + last if last else "")).strip() or f"User{tg_id}"
+    avatar = tg_user.get("photo_url")
+
+    from ..db.models import User as UserModel
+    user = db.query(UserModel).filter(UserModel.telegram_id == tg_id).first()
+    if not user:
+        fake_email = f"tg_{tg_id}@telegram.local"
+        user = UserModel(
+            id=f"user_{uuid.uuid4().hex[:10]}",
+            name=name,
+            email=fake_email,
+            hashed_password=hash_password(uuid.uuid4().hex),
+            telegram_id=tg_id,
+            avatar_url=avatar,
+        )
+        db.add(user)
+        db.flush()
+        for item in _DEFAULT_ITEMS:
+            db.add(WardrobeItem(
+                id=f"item_{uuid.uuid4().hex[:8]}",
                 user_id=user.id,
                 name=item["name"],
                 category=item["category"],
