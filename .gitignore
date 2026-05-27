@@ -30,6 +30,9 @@ frontend/node_modules/
 # TMA (Vite)
 tma/node_modules/
 tma/dist/
+tma/package-lock.json
+tma/.env
+tma/.env.local
 
 # Windows crash dumps
 *.stackdump
