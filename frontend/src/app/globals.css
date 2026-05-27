@@ -921,8 +921,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
-  padding: 32px;
-  width: 440px;
+  padding: 24px;
+  width: 400px;
   animation: fadeUp 0.25s ease both;
   box-shadow: var(--shadow-elevated);
 }
@@ -930,9 +930,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   background: var(--bg-elevated);
   border-color: var(--border-subtle);
 }
-.modal-title { font-family: var(--font-playfair, 'Playfair Display', serif); font-size: 22px; font-weight: 500; margin-bottom: 6px; color: var(--text-primary); }
-.modal-sub { font-family: var(--font-inter, 'Inter', sans-serif); font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
-.form-field { margin-bottom: 16px; }
+.modal-title { font-family: var(--font-playfair, 'Playfair Display', serif); font-size: 18px; font-weight: 500; margin-bottom: 4px; color: var(--text-primary); }
+.modal-sub { font-family: var(--font-inter, 'Inter', sans-serif); font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; }
+.form-field { margin-bottom: 12px; }
 .form-label { font-family: var(--font-inter, 'Inter', sans-serif); font-size: 12px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 6px; }
 .form-input, .form-select {
   width: 100%;
@@ -948,7 +948,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 }
 .form-input:focus, .form-select:focus { border-color: var(--accent-color); box-shadow: 0 0 0 2px rgba(200,130,109,0.2); }
 .form-select option { background: var(--bg-primary); }
-.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
 .divider { height: 1px; background: var(--border); margin: 4px 0; }
 
 /* ---- PHOTO UPLOAD ---- */
@@ -960,12 +960,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   position: relative;
   background: var(--surface3);
   aspect-ratio: 4/3;
+  max-height: 160px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: border-color 0.2s;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .photo-drop:hover { border-color: var(--gold); }
 .photo-drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
