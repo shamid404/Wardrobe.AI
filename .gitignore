@@ -44,4 +44,5 @@ skills-lock.json
 
 # Docs / generated
 *.md
-index.html
+frontend/index.html
+!tma/index.html
