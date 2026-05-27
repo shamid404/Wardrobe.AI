@@ -69,7 +69,7 @@ def send_verification_email(to_email: str, code: str, name: str) -> None:
     msg.attach(MIMEText(html, "html"))
 
     ctx = ssl.create_default_context()
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
         server.ehlo()
         server.starttls(context=ctx)
         server.login(SMTP_USER, SMTP_PASSWORD)
