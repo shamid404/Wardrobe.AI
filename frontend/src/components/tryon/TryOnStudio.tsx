@@ -2141,6 +2141,8 @@ const TOUR_STEPS: { id: string; mobileId?: string; mobilePos?: TourPos; title: s
   },
   {
     id: "tour-tabs",
+    mobileId: "mobile-action-bar",
+    mobilePos: "top",
     title: "Studio · History · Outfits",
     sub: "Switch between your workspace, past try-on results, and saved outfits using the navigation above.",
     pos: "bottom",
