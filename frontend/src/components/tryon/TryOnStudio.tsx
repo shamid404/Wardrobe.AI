@@ -161,7 +161,9 @@ async function resolveImage(src: string | null): Promise<string | null> {
     ? `/proxy-image?url=${encodeURIComponent(src)}`
     : src;
   try {
-    const res = await fetch(fetchSrc);
+    const res = await fetch(fetchSrc, {
+      headers: src.startsWith("http") ? authHeaders() : {},
+    });
     const blob = await res.blob();
     return await new Promise((resolve, reject) => {
       const reader = new FileReader();
