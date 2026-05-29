@@ -1297,7 +1297,7 @@ export function TryOnStudio() {
                       )}
                     </div>
                     <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.6 }}>
-                      Click any item to send it to laundry or return it. Items in laundry won't be available for outfit building.
+                      Click any item to send it to laundry or return it. Items in laundry will not be available for outfit building.
                     </p>
                   </div>
 
