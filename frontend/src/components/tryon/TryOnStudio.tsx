@@ -897,7 +897,7 @@ export function TryOnStudio() {
           <a href="#" className={activeTab === "outfits" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("outfits"); }}>
             Outfits {savedOutfits.length > 0 && `(${savedOutfits.length})`}
           </a>
-          <a href="#" className={activeTab === "laundry" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("laundry"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+          <a id="tour-laundry" href="#" className={activeTab === "laundry" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("laundry"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
             🧺 Laundry {laundryItems.length > 0 && `(${laundryItems.length})`}
           </a>
           <a href="#" className={activeTab === "settings" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("settings"); }}>
@@ -2307,7 +2307,15 @@ const TOUR_STEPS: { id: string; mobileId?: string; mobilePos?: TourPos; title: s
     mobileId: "mobile-action-bar",
     mobilePos: "top",
     title: "Studio · History · Outfits",
-    sub: "Switch between your workspace, past try-on results, and saved outfits using the navigation above.",
+    sub: "Switch between your workspace, past try-on results, saved outfits, and laundry using the navigation above.",
+    pos: "bottom",
+  },
+  {
+    id: "tour-laundry",
+    mobileId: "mobile-action-bar",
+    mobilePos: "top",
+    title: "Laundry Mode",
+    sub: "Send clothes to laundry so the AI and canvas know they are unavailable. Return them when ready to wear again.",
     pos: "bottom",
   },
   {
