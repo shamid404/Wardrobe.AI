@@ -19,6 +19,7 @@ from .db import models
 
 models.Base.metadata.create_all(bind=engine)
 
+
 limiter = Limiter(key_func=get_remote_address)
 
 _is_prod = ENVIRONMENT == "production"

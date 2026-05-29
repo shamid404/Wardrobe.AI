@@ -34,6 +34,7 @@ class WardrobeItem(Base):
     color: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     season: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="available", server_default="available")
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship("User", back_populates="wardrobe_items")

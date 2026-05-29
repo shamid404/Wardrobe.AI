@@ -97,6 +97,8 @@ async def assistant_chat(
             parts.append(f"color: {it.color}")
         if it.season:
             parts.append(f"season: {it.season}")
+        if (it.status or "available") == "laundry":
+            parts.append("status: IN LAUNDRY — not available")
         wardrobe_lines.append("  - " + ", ".join(parts))
     wardrobe_text = "\n".join(wardrobe_lines) if wardrobe_lines else "  (wardrobe is empty)"
 
@@ -135,6 +137,7 @@ Always respond with valid JSON in this exact structure:
 Rules:
 - SCOPE: You ONLY answer questions about fashion, clothing, style, outfits, wardrobe, accessories, and weather-based dressing. If the user asks about anything else (politics, coding, math, history, relationships, etc.), politely decline and redirect them to fashion topics.
 - Only recommend items from the user's wardrobe listed above. Never suggest items they don't have.
+- Items marked as "IN LAUNDRY" are being washed and are NOT available. Never recommend them.
 - If a saved outfit matches the user's request, mention it by name and suggest wearing it.
 - You can reference saved outfits in your message text, but recommended_items must still list the individual item names.
 - In recommended_items, use the EXACT item names as they appear in the wardrobe list.

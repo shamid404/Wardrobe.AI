@@ -23,6 +23,7 @@ def _to_out(item: WardrobeItem) -> ClothingItemOut:
         color=item.color,
         season=item.season,
         image_url=item.image_url,
+        status=item.status or "available",
         uploaded_at=item.uploaded_at.date().isoformat(),
     )
 
@@ -76,6 +77,8 @@ def update_clothing(
         item.color = data.color
     if data.season is not None:
         item.season = data.season
+    if data.status is not None:
+        item.status = data.status
     db.commit()
     db.refresh(item)
     return _to_out(item)

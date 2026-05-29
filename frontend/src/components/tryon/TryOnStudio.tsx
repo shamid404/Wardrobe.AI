@@ -16,6 +16,7 @@ type ClothingItem = {
   season: string;
   photo: string | null;
   removedBg: string | null;
+  status: "available" | "laundry";
 };
 
 const COLOR_HEX: Record<string, string> = {
@@ -220,7 +221,7 @@ export function TryOnStudio() {
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [topAbove, setTopAbove] = useState(true);
   const [tryOnHistory, setTryOnHistory] = useState<TryOnHistoryItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"studio" | "history" | "outfits" | "settings">("studio");
+  const [activeTab, setActiveTab] = useState<"studio" | "history" | "outfits" | "laundry" | "settings">("studio");
   const [chatOpen, setChatOpen] = useState(false);
   const [editItem, setEditItem] = useState<ClothingItem | null>(null);
   const [editForm, setEditForm] = useState({ name: "", category: "top" as CategoryKey, color: "", season: "" });
@@ -258,7 +259,7 @@ export function TryOnStudio() {
     }
   }, []);
 
-  const TAB_ORDER = ["studio", "history", "outfits", "settings"];
+  const TAB_ORDER = ["studio", "history", "outfits", "laundry", "settings"];
   useEffect(() => {
     const prev = TAB_ORDER.indexOf(prevTabRef.current);
     const next = TAB_ORDER.indexOf(activeTab);
@@ -412,16 +413,47 @@ export function TryOnStudio() {
 
   const filteredWardrobe = useMemo(
     () => wardrobe.filter((item) =>
+      item.status !== "laundry" &&
       (!filterColor || item.color === filterColor) &&
       (!filterSeason || item.season === filterSeason || item.season === "All seasons")
     ),
     [wardrobe, filterColor, filterSeason],
   );
 
+  const laundryItems = useMemo(() => wardrobe.filter((w) => w.status === "laundry"), [wardrobe]);
+
   const openEditModal = (item: ClothingItem, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditItem(item);
     setEditForm({ name: item.name, category: item.category, color: item.color || "", season: item.season || "" });
+  };
+
+  const toggleLaundryStatus = async (item: ClothingItem) => {
+    const newStatus = item.status === "laundry" ? "available" : "laundry";
+    try {
+      const res = await fetch(`/api/wardrobe/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error();
+      if (newStatus === "laundry") {
+        setSelected((prev) => ({
+          ...prev,
+          top: prev.top?.id === item.id ? null : prev.top,
+          outer: prev.outer?.id === item.id ? null : prev.outer,
+          bottom: prev.bottom?.id === item.id ? null : prev.bottom,
+          headwear: prev.headwear?.id === item.id ? null : prev.headwear,
+          shoes: prev.shoes?.id === item.id ? null : prev.shoes,
+          accessories: prev.accessories.filter((a) => a.id !== item.id),
+        }));
+      }
+      setWardrobe((prev) => prev.map((w) => w.id === item.id ? { ...w, status: newStatus } : w));
+      if (editItem?.id === item.id) setEditItem((prev) => prev ? { ...prev, status: newStatus } : null);
+      showToast(newStatus === "laundry" ? "🧺 Sent to laundry" : "✓ Back in wardrobe");
+    } catch {
+      showToast("❌ Failed to update status");
+    }
   };
 
   const saveEditItem = async () => {
@@ -505,7 +537,7 @@ export function TryOnStudio() {
   useEffect(() => {
     fetch("/api/wardrobe", { headers: authHeaders() })
       .then((r) => r.ok ? r.json() : [])
-      .then((items: Array<{ id: string; name: string; category: string; brand: string; size: string; color: string | null; season: string | null; image_url: string | null }>) => {
+      .then((items: Array<{ id: string; name: string; category: string; brand: string; size: string; color: string | null; season: string | null; image_url: string | null; status?: string }>) => {
         setWardrobe(items.map((i) => ({
           id: i.id,
           name: i.name,
@@ -516,6 +548,7 @@ export function TryOnStudio() {
           season: i.season || "",
           photo: i.image_url,
           removedBg: i.image_url?.startsWith("http") ? i.image_url : null,
+          status: (i.status === "laundry" ? "laundry" : "available") as "available" | "laundry",
         })));
       })
       .catch(() => {});
@@ -673,6 +706,7 @@ export function TryOnStudio() {
         season: created.season || "",
         photo: finalPhotoUrl,
         removedBg: finalPhotoUrl,
+        status: "available",
       };
 
       setWardrobe((prev) => [...prev, newItem]);
@@ -686,6 +720,7 @@ export function TryOnStudio() {
   };
 
   const toggleItem = (item: ClothingItem) => {
+    if (item.status === "laundry") return;
     if (item.category === "accessory") {
       setSelected((prev) => {
         const exists = prev.accessories.some((a) => a.id === item.id);
@@ -862,6 +897,9 @@ export function TryOnStudio() {
           <a href="#" className={activeTab === "outfits" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("outfits"); }}>
             Outfits {savedOutfits.length > 0 && `(${savedOutfits.length})`}
           </a>
+          <a href="#" className={activeTab === "laundry" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("laundry"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            🧺 Laundry {laundryItems.length > 0 && `(${laundryItems.length})`}
+          </a>
           <a href="#" className={activeTab === "settings" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("settings"); }}>
             Settings
           </a>
@@ -955,11 +993,16 @@ export function TryOnStudio() {
                       }`}
                       onClick={() => toggleItem(item)}
                       title={item.name}
-                      style={{ animation: "cardEnter 0.32s cubic-bezier(0.34,1.1,0.64,1) both", animationDelay: `${Math.min(i, 9) * 50}ms` }}
+                      style={{ animation: "cardEnter 0.32s cubic-bezier(0.34,1.1,0.64,1) both", animationDelay: `${Math.min(i, 9) * 50}ms`, opacity: item.status === "laundry" ? 0.55 : 1, cursor: item.status === "laundry" ? "default" : "pointer" }}
                     >
                       <div className="card-check">
                         <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="10 3 5 9 2 6"/></svg>
                       </div>
+                      {item.status === "laundry" && (
+                        <div style={{ position: "absolute", inset: 0, borderRadius: "var(--radius-md)", background: "rgba(45,34,24,0.32)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 4, pointerEvents: "none" }}>
+                          <span style={{ fontSize: "22px", filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.35))" }}>🧺</span>
+                        </div>
+                      )}
                       <div
                         className="card-delete"
                         onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
@@ -1232,6 +1275,104 @@ export function TryOnStudio() {
               </div>
             </div>
             </div>
+          )}
+
+          {activeTab === "laundry" && (
+            wardrobe.length === 0 ? (
+              <EmptyState
+                icon={<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>}
+                title="No Clothes Yet"
+                sub="Add items to your wardrobe first"
+              />
+            ) : (
+              <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "24px" }}>
+                <div style={{ maxWidth: "720px", margin: "0 auto" }}>
+                  <div style={{ marginBottom: "24px", animation: "fadeUp 0.4s ease both" }}>
+                    <div className="panel-title" style={{ marginBottom: "4px", display: "flex", alignItems: "center", gap: "10px" }}>
+                      🧺 Laundry
+                      {laundryItems.length > 0 && (
+                        <span style={{ fontSize: "12px", fontWeight: 600, padding: "2px 10px", borderRadius: "20px", background: "rgba(200,130,109,0.12)", color: "var(--accent-color)", border: "1px solid rgba(200,130,109,0.25)" }}>
+                          {laundryItems.length} in laundry
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                      Click any item to send it to laundry or return it. Items in laundry won't be available for outfit building.
+                    </p>
+                  </div>
+
+                  {CATEGORIES.map((cat) => {
+                    const catItems = wardrobe.filter((w) => w.category === cat.key);
+                    if (catItems.length === 0) return null;
+                    return (
+                      <div key={cat.key} style={{ marginBottom: "28px", animation: "fadeUp 0.4s ease both" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                          <div className={`category-dot ${cat.dotClass}`} />
+                          <span style={{ fontFamily: "var(--font-playfair,'Playfair Display',serif)", fontSize: "17px", fontWeight: 500, color: "var(--text-primary)" }}>{cat.label}</span>
+                          <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: "4px" }}>
+                            {catItems.filter((i) => i.status === "laundry").length > 0 && `${catItems.filter((i) => i.status === "laundry").length} in laundry`}
+                          </span>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "10px" }}>
+                          {catItems.map((item, idx) => {
+                            const isLaundry = item.status === "laundry";
+                            return (
+                              <div
+                                key={item.id}
+                                onClick={() => toggleLaundryStatus(item)}
+                                style={{
+                                  borderRadius: "var(--radius-md)",
+                                  border: `1.5px solid ${isLaundry ? "rgba(200,130,109,0.45)" : "var(--border-subtle)"}`,
+                                  background: isLaundry ? "rgba(200,130,109,0.06)" : "var(--bg-surface)",
+                                  boxShadow: isLaundry ? "0 0 0 2px rgba(200,130,109,0.1)" : "var(--shadow-card)",
+                                  cursor: "pointer",
+                                  overflow: "hidden",
+                                  transition: "all 0.22s ease",
+                                  animation: `cardEnter 0.32s cubic-bezier(0.34,1.1,0.64,1) both`,
+                                  animationDelay: `${Math.min(idx, 9) * 40}ms`,
+                                  position: "relative",
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "var(--shadow-card-hover)"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = isLaundry ? "0 0 0 2px rgba(200,130,109,0.1)" : "var(--shadow-card)"; }}
+                              >
+                                <div style={{ height: "90px", background: "var(--bg-primary)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+                                  {item.removedBg || item.photo ? (
+                                    <img src={item.removedBg || item.photo!} style={{ width: "100%", height: "100%", objectFit: "contain", filter: isLaundry ? "saturate(0.4) brightness(0.85)" : "none", transition: "filter 0.3s" }} alt={item.name} />
+                                  ) : (
+                                    <div style={{ opacity: 0.2, display: "flex" }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+                                  )}
+                                  {isLaundry && (
+                                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(244,236,224,0.5)" }}>
+                                      <span style={{ fontSize: "28px", animation: "popIn 0.3s cubic-bezier(0.34,1.2,0.64,1) both" }}>🧺</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ padding: "8px 10px 10px" }}>
+                                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: "6px" }}>{item.name}</div>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleLaundryStatus(item); }}
+                                    style={{
+                                      width: "100%", padding: "4px 0", borderRadius: "6px", border: `1px solid ${isLaundry ? "rgba(200,130,109,0.4)" : "var(--border-subtle)"}`,
+                                      background: isLaundry ? "rgba(200,130,109,0.1)" : "transparent",
+                                      color: isLaundry ? "var(--accent-color)" : "var(--text-secondary)",
+                                      fontSize: "10px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                                      transition: "all 0.18s ease",
+                                      letterSpacing: "0.04em",
+                                    }}
+                                  >
+                                    {isLaundry ? "↩ Return" : "🧺 Send"}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )
           )}
 
           {activeTab === "outfits" && (
@@ -1853,7 +1994,25 @@ export function TryOnStudio() {
                   ))}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "4px" }}>
+              <div style={{ marginTop: "4px" }}>
+                <button
+                  onClick={() => editItem && toggleLaundryStatus(editItem)}
+                  style={{
+                    width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
+                    border: `1.5px solid ${editItem?.status === "laundry" ? "rgba(200,130,109,0.5)" : "var(--border-subtle)"}`,
+                    background: editItem?.status === "laundry" ? "rgba(200,130,109,0.08)" : "transparent",
+                    color: editItem?.status === "laundry" ? "var(--accent-color)" : "var(--text-secondary)",
+                    fontSize: "13px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                    transition: "all 0.2s ease",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <span style={{ fontSize: "16px" }}>🧺</span>
+                  {editItem?.status === "laundry" ? "Return from laundry" : "Send to laundry"}
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
                 <button
                   className="btn btn-ghost"
                   style={{ marginRight: "auto", color: "var(--error, #e53e3e)", borderColor: "var(--error, #e53e3e)" }}
@@ -2113,6 +2272,10 @@ export function TryOnStudio() {
         <button onClick={() => { setActiveTab("outfits"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "outfits" ? "active" : ""}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/></svg>
           Outfits
+        </button>
+        <button onClick={() => { setActiveTab("laundry"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "laundry" ? "active" : ""}>
+          <span style={{ fontSize: "16px", lineHeight: 1 }}>🧺</span>
+          Laundry{laundryItems.length > 0 ? ` (${laundryItems.length})` : ""}
         </button>
         <button onClick={() => { setActiveTab("settings"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "settings" ? "active" : ""}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>

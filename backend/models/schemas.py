@@ -58,6 +58,7 @@ class ClothingItemUpdate(BaseModel):
     size: Optional[str] = Field(default=None, max_length=20)
     color: Optional[str] = Field(default=None, max_length=50)
     season: Optional[str] = Field(default=None, max_length=50)
+    status: Optional[Literal["available", "laundry"]] = None
 
 
 class ClothingItemOut(BaseModel):
@@ -69,6 +70,7 @@ class ClothingItemOut(BaseModel):
     color: Optional[str] = None
     season: Optional[str] = None
     image_url: Optional[str] = None
+    status: str = "available"
     uploaded_at: str
 
 
