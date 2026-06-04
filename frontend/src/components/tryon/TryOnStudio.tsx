@@ -256,6 +256,7 @@ export function TryOnStudio() {
     confirmLabel: string;
     onConfirm: () => void;
   } | null>(null);
+  const [dragOverCanvas, setDragOverCanvas] = useState(false);
   const router = useRouter();
 
   const askConfirm = (opts: { title: string; message: string; confirmLabel: string; onConfirm: () => void }) =>
@@ -747,6 +748,16 @@ export function TryOnStudio() {
     }
   };
 
+  // Add (never toggle-off) — used by drag-and-drop onto the canvas.
+  const addToSelected = (item: ClothingItem) => {
+    if (item.status === "laundry") return;
+    if (item.category === "accessory") {
+      setSelected((prev) => prev.accessories.some((a) => a.id === item.id) ? prev : { ...prev, accessories: [...prev.accessories, item] });
+    } else {
+      setSelected((prev) => ({ ...prev, [item.category]: item }));
+    }
+  };
+
   const toggleItem = (item: ClothingItem) => {
     if (item.status === "laundry") return;
     if (item.category === "accessory") {
@@ -1021,6 +1032,8 @@ export function TryOnStudio() {
                           : (selected as any)[cat.key]?.id === item.id ? cat.selectedClass : ""
                       }`}
                       onClick={() => toggleItem(item)}
+                      draggable={item.status !== "laundry"}
+                      onDragStart={(e) => { e.dataTransfer.setData("text/plain", item.id); e.dataTransfer.effectAllowed = "copy"; }}
                       title={item.name}
                       style={{ animation: "cardEnter 0.32s cubic-bezier(0.34,1.1,0.64,1) both", animationDelay: `${Math.min(i, 9) * 50}ms`, opacity: item.status === "laundry" ? 0.55 : 1, cursor: item.status === "laundry" ? "default" : "pointer" }}
                     >
@@ -1161,7 +1174,27 @@ export function TryOnStudio() {
           </button>
         </div>
 
-        <div className="canvas-area" id="tour-canvas">
+        <div
+          className="canvas-area"
+          id="tour-canvas"
+          onDragOver={(e) => { if (activeTab === "studio") { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setDragOverCanvas(true); } }}
+          onDragLeave={(e) => { if (e.currentTarget === e.target) setDragOverCanvas(false); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOverCanvas(false);
+            if (activeTab !== "studio") return;
+            const id = e.dataTransfer.getData("text/plain");
+            const item = wardrobe.find((w) => w.id === id);
+            if (item) { addToSelected(item); showToast(`✓ ${item.name} added`); }
+          }}
+        >
+          {dragOverCanvas && (
+            <div style={{ position: "absolute", inset: "12px", border: "2px dashed var(--accent-color)", borderRadius: "16px", background: "rgba(200,130,109,0.06)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30, pointerEvents: "none" }}>
+              <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--accent-color)", background: "var(--bg-surface)", padding: "10px 20px", borderRadius: "24px", boxShadow: "var(--shadow-elevated)" }}>
+                Drop to add to outfit
+              </div>
+            </div>
+          )}
           <div key={activeTab} className="canvas-tab-wrapper" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", animation: `tabSlide${slideDir === "left" ? "FromRight" : "FromLeft"} 0.28s ease both` }}>
           {activeTab === "settings" && (
             <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "32px" }}>
@@ -1435,22 +1468,7 @@ export function TryOnStudio() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "16px" }}>
                 {savedOutfits.map((outfit) => (
                   <div key={outfit.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "12px", overflow: "hidden", background: "var(--surface)" }}>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", padding: "12px", background: "var(--bg-secondary)", minHeight: "80px" }}>
-                      {outfit.items.slice(0, 4).map((oi) => (
-                        <div key={oi.item_id} style={{ width: "52px", height: "52px", borderRadius: "8px", overflow: "hidden", background: "var(--bg-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          {oi.image_url ? (
-                            <img src={oi.image_url} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                          ) : (
-                            <div style={{ opacity: 0.2, display: "flex" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-                          )}
-                        </div>
-                      ))}
-                      {outfit.items.length > 4 && (
-                        <div style={{ width: "52px", height: "52px", borderRadius: "8px", background: "var(--bg-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: "var(--text-secondary)" }}>
-                          +{outfit.items.length - 4}
-                        </div>
-                      )}
-                    </div>
+                    <OutfitFlatlayPreview items={outfit.items} />
                     <div style={{ padding: "12px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
                         <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-primary)" }}>{outfit.name}</div>
@@ -1508,7 +1526,24 @@ export function TryOnStudio() {
               </div>
             )
           )}
-          {activeTab === "studio" && (selectedOutfit.length === 0 ? (
+          {activeTab === "studio" && (tryOnState === "done" && tryOnResultImage ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "20px", width: "100%", padding: "20px", animation: "fadeUp 0.5s ease both" }}>
+              <div style={{ position: "relative", maxWidth: "min(420px, 90%)", maxHeight: "62vh", borderRadius: "var(--radius-lg)", overflow: "hidden", boxShadow: "var(--shadow-elevated)", border: "1px solid var(--border-subtle)" }}>
+                <img src={tryOnResultImage} alt="Virtual try-on result" style={{ width: "100%", height: "auto", maxHeight: "62vh", objectFit: "contain", display: "block" }} />
+                <div style={{ position: "absolute", top: "12px", left: "12px", display: "flex", alignItems: "center", gap: "6px", background: "rgba(45,34,24,0.7)", color: "#fff", fontSize: "11px", fontWeight: 600, padding: "4px 10px", borderRadius: "20px", backdropFilter: "blur(4px)" }}>
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--success)" }} /> AI Generated
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center" }}>
+                <button className="btn btn-primary" onClick={() => downloadImage(tryOnResultImage)} style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Download
+                </button>
+                <button className="btn btn-ghost" onClick={generateTryOn}>Try again</button>
+                <button className="btn btn-ghost" onClick={() => { setTryOnState(null); setTryOnResultImage(null); }}>Back to outfit</button>
+              </div>
+            </div>
+          ) : selectedOutfit.length === 0 ? (
             <EmptyState
               icon={<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.86H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.86l.58-3.57a2 2 0 00-1.34-2.23z"/></svg>}
               title="Select Items to Try"
@@ -1718,50 +1753,25 @@ export function TryOnStudio() {
             </div>
           )}
 
-          {tryOnState === "done" && (
+          {tryOnState === "done" && tryOnResultImage && (
             <div>
               <div className="panel-title">Try-On Result</div>
-              <div className="tryon-result">
-                <div className="tryon-header">
-                  <div className="tryon-title">AI Generated</div>
-                  <div className="status-dot dot-done"></div>
+              <div className="analysis-card" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ width: "44px", height: "44px", borderRadius: "10px", overflow: "hidden", flexShrink: 0, border: "1px solid var(--border-subtle)" }}>
+                  <img src={tryOnResultImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </div>
-                <div className="tryon-body">
-                  <div className="tryon-preview">
-                    {tryOnResultImage ? (
-                      <img
-                        src={tryOnResultImage}
-                        alt="Try-on result"
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      />
-                    ) : (
-                      <div style={{ fontSize: "14px", textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>
-                        Select items and click Generate
-                      </div>
-                    )}
-                  </div>
-
+                <div style={{ flex: 1, fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                  Result is ready — shown on the canvas.
                 </div>
               </div>
-              <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => { setTryOnState(null); setTryOnResultImage(null); }}
-                  style={{ flex: 1 }}
-                >
-                  Clear
-                </button>
-                {tryOnResultImage && (
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => downloadImage(tryOnResultImage)}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download
-                  </button>
-                )}
-              </div>
+              <button
+                className="btn btn-primary"
+                onClick={() => downloadImage(tryOnResultImage)}
+                style={{ width: "100%", marginTop: "10px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download
+              </button>
             </div>
           )}
 
@@ -2605,6 +2615,37 @@ function OnboardingTour({ onDone }: { onDone: () => void }) {
         </div>
       )}
 
+    </div>
+  );
+}
+
+// ─── OutfitFlatlayPreview ────────────────────────────────────────
+// Renders a saved outfit as a mini flat-lay (echoes the studio canvas):
+// cream background with grid, items ordered top→bottom→shoes→accessories.
+function OutfitFlatlayPreview({ items }: { items: { item_id: string; name: string; category: string; image_url: string | null }[] }) {
+  const ORDER = ["headwear", "top", "outer", "bottom", "shoes", "accessory"];
+  const ordered = [...items].sort((a, b) => {
+    const ia = ORDER.indexOf(a.category); const ib = ORDER.indexOf(b.category);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+  return (
+    <div style={{
+      display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "6px",
+      padding: "16px 12px", minHeight: "140px",
+      background: "var(--bg-primary)",
+      backgroundImage: "linear-gradient(rgba(176,132,86,0.10) 1px, transparent 1px), linear-gradient(90deg, rgba(176,132,86,0.10) 1px, transparent 1px)",
+      backgroundSize: "20px 20px",
+      borderBottom: "1px solid var(--border-subtle)",
+    }}>
+      {ordered.map((oi) => (
+        <div key={oi.item_id} title={oi.name} style={{ width: "64px", height: "64px", display: "flex", alignItems: "center", justifyContent: "center", filter: "drop-shadow(0 4px 10px rgba(60,40,20,0.12))" }}>
+          {oi.image_url ? (
+            <img src={oi.image_url} alt={oi.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+          ) : (
+            <div style={{ opacity: 0.2, display: "flex" }}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

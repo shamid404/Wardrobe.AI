@@ -354,7 +354,15 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   padding: 0;
   overflow: hidden;
 }
-.app.non-studio .main-toolbar { display: none; }
+.app.non-studio .main-toolbar {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+  border-bottom-color: transparent;
+}
 
 /* ---- HEADER ---- */
 .header {
@@ -716,6 +724,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   background: var(--bg-surface);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   box-shadow: var(--shadow-card);
+  max-height: 200px;
+  overflow: hidden;
+  transition: max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, padding 0.32s ease, transform 0.32s ease;
 }
 .dark .main-toolbar {
   border-bottom-color: var(--border-subtle);
