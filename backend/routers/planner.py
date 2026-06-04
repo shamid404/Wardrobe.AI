@@ -199,8 +199,15 @@ Respond with ONLY this JSON (no markdown):
 }}"""
 
     contents = [{"role": "user", "parts": [{"text": prompt}]}]
-    parsed, _raw = call_gemini_json(contents, max_tokens=3072, temperature=0.8)
-    return parsed or {}
+    # Scale the output budget with the number of days so a 7-day plan isn't
+    # truncated mid-JSON (which caused {"error":"generation_failed"}).
+    max_tokens = min(8192, 1200 + 1000 * len(day_specs))
+    parsed, _raw = call_gemini_json(contents, max_tokens=max_tokens, temperature=0.8)
+    if isinstance(parsed, list):
+        return {"days": parsed}          # model returned a bare array
+    if isinstance(parsed, dict):
+        return parsed
+    return {}
 
 
 # ─────────────────────────────────────────────────────────────

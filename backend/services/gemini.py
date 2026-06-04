@@ -57,6 +57,7 @@ def call_gemini_json(
         },
     }
 
+    last_raw = ""
     for model in MODELS:
         try:
             r = requests.post(
@@ -72,8 +73,11 @@ def call_gemini_json(
             try:
                 return json.loads(raw), raw
             except json.JSONDecodeError:
-                return None, raw
+                # Bad/truncated JSON from this model — keep it as a fallback and
+                # try the next model before giving up.
+                last_raw = raw
+                continue
         except Exception:
             continue
 
-    return None, ""
+    return None, last_raw
