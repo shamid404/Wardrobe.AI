@@ -13,6 +13,7 @@ from ..auth import get_current_user
 from ..config import GEMINI_API_KEY
 from ..db.database import get_db
 from ..db.models import WardrobeItem, Outfit, ChatSession, ChatMessage as ChatMessageModel
+from ..services.gemini import recover_message
 
 router = APIRouter(tags=["assistant"])
 
@@ -180,7 +181,7 @@ Rules:
         "contents": contents,
         "generationConfig": {
             "temperature": 0.7,
-            "maxOutputTokens": 1024,
+            "maxOutputTokens": 2048,
             "responseMimeType": "application/json",
         },
     }
@@ -217,10 +218,11 @@ Rules:
             raw = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
             try:
                 parsed = json.loads(raw)
-                reply = parsed.get("message", raw)
+                reply = parsed.get("message") or recover_message(raw) or "Sorry, I couldn't form a reply just now — please try again."
                 recommended_names = parsed.get("recommended_items", [])
             except json.JSONDecodeError:
-                reply = raw
+                # Truncated/invalid JSON — never surface raw braces to the user.
+                reply = recover_message(raw) or "Sorry, I couldn't form a reply just now — please try again."
                 recommended_names = []
 
             # Resolve item IDs for recommended items

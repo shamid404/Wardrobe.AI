@@ -87,6 +87,19 @@ class ChatMessage(Base):
     session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="messages")
 
 
+class OutfitPlan(Base):
+    __tablename__ = "outfit_plans"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: f"plan_{uuid.uuid4().hex[:8]}")
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)  # YYYY-MM-DD
+    item_ids: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON array of wardrobe item ids
+    occasion: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    weather: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)  # e.g. "8°C, rain"
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class TryOnHistory(Base):
     __tablename__ = "tryon_history"
 
