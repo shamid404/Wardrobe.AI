@@ -55,6 +55,9 @@ type SavedOutfit = {
   items: { item_id: string; name: string; category: string; image_url: string | null }[];
 };
 
+type PlanItem = { item_id: string; name: string; category: string; image_url: string | null };
+type DayPlan = { date: string; occasion: string | null; note: string | null; weather: string | null; items: PlanItem[] };
+
 async function removeBackground(
   imageDataUrl: string,
   onStep?: (step: "detect" | "segment" | "done") => void,
@@ -221,7 +224,7 @@ export function TryOnStudio() {
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [topAbove, setTopAbove] = useState(true);
   const [tryOnHistory, setTryOnHistory] = useState<TryOnHistoryItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"studio" | "history" | "outfits" | "laundry" | "settings">("studio");
+  const [activeTab, setActiveTab] = useState<"studio" | "plan" | "history" | "outfits" | "laundry" | "settings">("studio");
   const [chatOpen, setChatOpen] = useState(false);
   const [editItem, setEditItem] = useState<ClothingItem | null>(null);
   const [editForm, setEditForm] = useState({ name: "", category: "top" as CategoryKey, color: "", season: "" });
@@ -257,6 +260,9 @@ export function TryOnStudio() {
     onConfirm: () => void;
   } | null>(null);
   const [dragOverCanvas, setDragOverCanvas] = useState(false);
+  const [weekPlans, setWeekPlans] = useState<DayPlan[]>([]);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planningDay, setPlanningDay] = useState<string | null>(null);
   const router = useRouter();
 
   const askConfirm = (opts: { title: string; message: string; confirmLabel: string; onConfirm: () => void }) =>
@@ -269,7 +275,7 @@ export function TryOnStudio() {
     }
   }, []);
 
-  const TAB_ORDER = ["studio", "history", "outfits", "laundry", "settings"];
+  const TAB_ORDER = ["studio", "plan", "history", "outfits", "laundry", "settings"];
   useEffect(() => {
     const prev = TAB_ORDER.indexOf(prevTabRef.current);
     const next = TAB_ORDER.indexOf(activeTab);
@@ -312,7 +318,12 @@ export function TryOnStudio() {
           session_id: currentSessionId,
         }),
       });
-      const data = await res.json();
+      if (redirectIfUnauthorized(res.status)) return;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.reply !== "string") {
+        setChatMessages([...updatedHistory, { role: "assistant", content: "Something went wrong. Please try again." }]);
+        return;
+      }
       if (data.session_id) {
         setCurrentSessionId(data.session_id);
         setChatSessions((prev) => {
@@ -420,6 +431,89 @@ export function TryOnStudio() {
     setActiveTab("studio");
     showToast(`✓ Outfit "${outfit.name}" loaded`);
   };
+
+  // ─── Week planner ──────────────────────────────────────────────
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+
+  const loadPlans = async () => {
+    try {
+      const q = new URLSearchParams({ start: todayStr() });
+      if (userCoords) { q.set("lat", String(userCoords.lat)); q.set("lon", String(userCoords.lon)); }
+      const res = await fetch(`/api/plans?${q.toString()}`, { headers: authHeaders() });
+      if (redirectIfUnauthorized(res.status)) return;
+      if (res.ok) setWeekPlans(await res.json());
+    } catch { /* silent */ }
+  };
+
+  const planWeek = async () => {
+    setPlanLoading(true);
+    try {
+      const res = await fetch("/assistant/plan-week", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ start: todayStr(), lat: userCoords?.lat ?? null, lon: userCoords?.lon ?? null }),
+      });
+      if (redirectIfUnauthorized(res.status)) return;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error || !Array.isArray(data.days)) {
+        showToast(data.error === "empty_wardrobe" ? "Add items to your wardrobe first" : "❌ Couldn't plan the week");
+        return;
+      }
+      setWeekPlans(data.days);
+      showToast("✓ Week planned!");
+    } catch {
+      showToast("❌ Couldn't plan the week");
+    } finally {
+      setPlanLoading(false);
+    }
+  };
+
+  const regenerateDay = async (d: string) => {
+    setPlanningDay(d);
+    try {
+      const res = await fetch("/assistant/plan-day", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ date: d, lat: userCoords?.lat ?? null, lon: userCoords?.lon ?? null }),
+      });
+      if (redirectIfUnauthorized(res.status)) return;
+      const day = await res.json().catch(() => ({}));
+      if (!res.ok || day.error || !day.date) {
+        showToast(day.error === "empty_wardrobe" ? "Add items to your wardrobe first" : "❌ Couldn't update day");
+        return;
+      }
+      setWeekPlans((prev) => prev.map((p) => (p.date === d ? day : p)));
+    } catch {
+      showToast("❌ Couldn't update day");
+    } finally {
+      setPlanningDay(null);
+    }
+  };
+
+  const clearDay = async (d: string) => {
+    try {
+      await fetch(`/api/plans/${d}`, { method: "DELETE", headers: authHeaders() });
+      setWeekPlans((prev) => prev.map((p) => (p.date === d ? { ...p, items: [], occasion: null, note: null } : p)));
+    } catch { /* silent */ }
+  };
+
+  const wearPlan = (plan: DayPlan) => {
+    const newSelected: SelectedState = { top: null, outer: null, bottom: null, headwear: null, shoes: null, accessories: [] };
+    plan.items.forEach((pi) => {
+      const found = wardrobe.find((w) => w.id === pi.item_id);
+      if (!found) return;
+      if (found.category === "accessory") newSelected.accessories.push(found);
+      else (newSelected as any)[found.category] = found;
+    });
+    setSelected(newSelected);
+    setActiveTab("studio");
+    showToast("✓ Outfit loaded to studio");
+  };
+
+  useEffect(() => {
+    if (activeTab === "plan") loadPlans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, userCoords]);
 
   const filteredWardrobe = useMemo(
     () => wardrobe.filter((item) =>
@@ -931,6 +1025,9 @@ export function TryOnStudio() {
           <a href="#" className={activeTab === "studio" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("studio"); }}>
             Studio
           </a>
+          <a href="#" className={activeTab === "plan" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("plan"); }}>
+            Plan
+          </a>
           <a href="#" className={activeTab === "history" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("history"); }}>
             History {tryOnHistory.length > 0 && `(${tryOnHistory.length})`}
           </a>
@@ -1197,6 +1294,95 @@ export function TryOnStudio() {
             </div>
           )}
           <div key={activeTab} className="canvas-tab-wrapper" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", animation: `tabSlide${slideDir === "left" ? "FromRight" : "FromLeft"} 0.28s ease both` }}>
+          {activeTab === "plan" && (
+            <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "24px" }}>
+              <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "20px", flexWrap: "wrap" }}>
+                  <div>
+                    <div className="panel-title" style={{ marginBottom: "2px" }}>Plan your week</div>
+                    <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                      AI builds 7 outfits from your wardrobe, matched to the weather{userCoords ? "" : " (enable location for weather)"}.
+                    </p>
+                  </div>
+                  <button className="btn btn-primary" onClick={planWeek} disabled={planLoading} style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                    {planLoading
+                      ? <><svg style={{ animation: "spin 0.8s linear infinite" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>Planning…</>
+                      : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>{weekPlans.some((p) => p.items.length > 0) ? "Reshuffle week" : "Plan my week"}</>
+                    }
+                  </button>
+                </div>
+
+                {weekPlans.length === 0 ? (
+                  <div style={{ minHeight: "50vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <EmptyState
+                      icon={<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>}
+                      title="Plan your week"
+                      sub='Click "Plan my week" to let the AI build 7 outfits from your wardrobe.'
+                    />
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: "14px", overflowX: "auto", paddingBottom: "12px" }}>
+                    {weekPlans.map((plan) => {
+                      const dateObj = new Date(plan.date + "T00:00:00");
+                      const weekday = dateObj.toLocaleDateString(undefined, { weekday: "short" });
+                      const dayNum = dateObj.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+                      const isToday = plan.date === todayStr();
+                      const busy = planningDay === plan.date;
+                      return (
+                        <div key={plan.date} style={{ flexShrink: 0, width: "208px", border: `1px solid ${isToday ? "var(--accent-color)" : "var(--border-subtle)"}`, borderRadius: "14px", overflow: "hidden", background: "var(--surface)", display: "flex", flexDirection: "column", boxShadow: isToday ? "0 0 0 2px rgba(200,130,109,0.18)" : "var(--shadow-card)" }}>
+                          <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+                            <div>
+                              <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)" }}>
+                                {weekday}{isToday && <span style={{ marginLeft: "5px", fontSize: "9px", color: "var(--accent-color)", fontWeight: 700 }}>TODAY</span>}
+                              </div>
+                              <div style={{ fontSize: "11px", color: "var(--text-secondary)" }}>{dayNum}</div>
+                            </div>
+                            {plan.weather && (
+                              <div style={{ fontSize: "10px", color: "var(--text-secondary)", textAlign: "right", maxWidth: "92px", lineHeight: 1.3 }}>{plan.weather}</div>
+                            )}
+                          </div>
+
+                          {busy ? (
+                            <div style={{ minHeight: "150px", display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-primary)" }}>
+                              <div className="spinner" />
+                            </div>
+                          ) : plan.items.length > 0 ? (
+                            <OutfitFlatlayPreview items={plan.items} compact />
+                          ) : (
+                            <div style={{ minHeight: "150px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-primary)", color: "var(--text-tertiary)" }}>
+                              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                              <span style={{ fontSize: "11px" }}>No outfit yet</span>
+                            </div>
+                          )}
+
+                          <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: "8px", flex: 1 }}>
+                            {plan.occasion && (
+                              <span style={{ alignSelf: "flex-start", fontSize: "10px", fontWeight: 600, padding: "2px 9px", borderRadius: "20px", background: "rgba(200,130,109,0.12)", color: "var(--accent-color)", border: "1px solid rgba(200,130,109,0.25)" }}>{plan.occasion}</span>
+                            )}
+                            {plan.note && <div style={{ fontSize: "11px", color: "var(--text-secondary)", lineHeight: 1.4 }}>{plan.note}</div>}
+                            <div style={{ marginTop: "auto", display: "flex", gap: "6px", alignItems: "center" }}>
+                              {plan.items.length > 0 && (
+                                <button className="btn btn-primary" style={{ flex: 1, fontSize: "11px", padding: "6px 8px" }} onClick={() => wearPlan(plan)}>Wear it</button>
+                              )}
+                              <button className="btn btn-ghost" title="Regenerate this day" disabled={busy} onClick={() => regenerateDay(plan.date)} style={{ fontSize: "11px", padding: "6px 8px" }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                              </button>
+                              {plan.items.length > 0 && (
+                                <button className="btn btn-ghost" title="Clear day" onClick={() => clearDay(plan.date)} style={{ fontSize: "11px", padding: "6px 8px" }}>
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === "settings" && (
             <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "32px" }}>
             <div style={{ maxWidth: "520px", margin: "0 auto" }}>
@@ -2377,6 +2563,10 @@ export function TryOnStudio() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
           Studio
         </button>
+        <button onClick={() => { setActiveTab("plan"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "plan" ? "active" : ""}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Plan
+        </button>
         <button onClick={() => { setActiveTab("history"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "history" ? "active" : ""}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           History
@@ -2623,12 +2813,14 @@ function OnboardingTour({ onDone }: { onDone: () => void }) {
 // ─── OutfitFlatlayPreview ────────────────────────────────────────
 // Renders a saved outfit as a flat-lay: garments stacked vertically in
 // the centre (head→top→outer→bottom→shoes), accessories in a side column.
-function OutfitFlatlayPreview({ items }: { items: { item_id: string; name: string; category: string; image_url: string | null }[] }) {
+function OutfitFlatlayPreview({ items, compact }: { items: { item_id: string; name: string; category: string; image_url: string | null }[]; compact?: boolean }) {
   const GARMENT_ORDER = ["headwear", "top", "outer", "bottom", "shoes"];
   const garments = items
     .filter((i) => i.category !== "accessory")
     .sort((a, b) => GARMENT_ORDER.indexOf(a.category) - GARMENT_ORDER.indexOf(b.category));
   const accessories = items.filter((i) => i.category === "accessory");
+  const GSIZE = compact ? 60 : 96;
+  const ASIZE = compact ? 36 : 52;
 
   const renderItem = (oi: { item_id: string; name: string; image_url: string | null }, size: number) => (
     <div key={oi.item_id} title={oi.name} style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", filter: "drop-shadow(0 5px 12px rgba(60,40,20,0.14))" }}>
@@ -2642,19 +2834,19 @@ function OutfitFlatlayPreview({ items }: { items: { item_id: string; name: strin
 
   return (
     <div style={{
-      display: "flex", alignItems: "center", justifyContent: "center", gap: "14px",
-      padding: "22px 16px", minHeight: "260px",
+      display: "flex", alignItems: "center", justifyContent: "center", gap: compact ? "8px" : "14px",
+      padding: compact ? "14px 10px" : "22px 16px", minHeight: compact ? "150px" : "260px",
       background: "var(--bg-primary)",
       borderBottom: "1px solid var(--border-subtle)",
     }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
-        {garments.length > 0 ? garments.map((g) => renderItem(g, 96)) : (
+        {garments.length > 0 ? garments.map((g) => renderItem(g, GSIZE)) : (
           <div style={{ opacity: 0.2, display: "flex" }}><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
         )}
       </div>
       {accessories.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", alignSelf: "center" }}>
-          {accessories.map((a) => renderItem(a, 52))}
+          {accessories.map((a) => renderItem(a, ASIZE))}
         </div>
       )}
     </div>
