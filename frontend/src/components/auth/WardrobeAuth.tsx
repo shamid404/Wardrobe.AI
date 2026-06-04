@@ -35,6 +35,13 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
     return () => clearTimeout(t);
   }, [resendCooldown]);
 
+  // Show a clear notice when the user was bounced here by an expired session.
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("expired") === "1") {
+      setError("Your session has expired. Please sign in again.");
+    }
+  }, []);
+
   const handleOtpChange = (index: number, value: string) => {
     const digit = value.replace(/\D/g, "").slice(-1);
     const next = [...otp];
@@ -46,6 +53,9 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       otpRefs.current[index - 1]?.focus();
+    }
+    if (e.key === "Enter" && otp.join("").length === 6) {
+      handleVerify();
     }
   };
 
@@ -62,7 +72,9 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
   const handleSubmit = async () => {
     setError("");
     if (mode === "register") {
-      if (password.length < 8) { setError("Пароль должен содержать минимум 8 символов"); return; }
+      if (!name.trim()) { setError("Please enter your name"); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError("Please enter a valid email address"); return; }
+      if (password.length < 8) { setError("Password must be at least 8 characters"); return; }
       if (password !== confirmPassword) { setError("Passwords do not match"); return; }
       setLoading(true);
       try {
@@ -77,7 +89,7 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
           let errMsg = detail || "Failed to send code";
           if (Array.isArray(detail)) {
             const pwErr = detail.find((e: any) => e?.loc?.includes("password"));
-            errMsg = pwErr ? "Пароль должен содержать минимум 8 символов" : "Please check the form";
+            errMsg = pwErr ? "Password must be at least 8 characters" : "Please check the form";
           }
           setError(errMsg);
           return;
@@ -94,6 +106,8 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
     }
 
     if (mode === "login") {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError("Please enter a valid email address"); return; }
+      if (!password) { setError("Please enter your password"); return; }
       setLoading(true);
       try {
         const res = await fetch("/api/auth/login", {
@@ -455,7 +469,7 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
         </div>
 
         {/* Card */}
-        <div style={{
+        <div className="auth-card" style={{
           width: "100%",
           background: "#FAF5EE",
           borderRadius: 24,
@@ -515,10 +529,11 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
               </p>
 
               {/* OTP inputs */}
-              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 20 }}>
+              <div className="auth-otp-row" style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 20 }}>
                 {otp.map((digit, i) => (
                   <input
                     key={i}
+                    className="auth-otp-input"
                     ref={(el) => { otpRefs.current[i] = el; }}
                     type="text"
                     inputMode="numeric"
@@ -643,6 +658,7 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
                     placeholder="Your name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
                     onFocus={() => setFocused("name")}
                     onBlur={() => setFocused(null)}
                     style={inputStyle("name")}
@@ -656,9 +672,12 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
                 <input
                   id="auth-email"
                   type="email"
+                  autoComplete="email"
+                  autoFocus
                   placeholder="your@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
                   onFocus={() => setFocused("email")}
                   onBlur={() => setFocused(null)}
                   style={inputStyle("email")}
@@ -672,9 +691,11 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
                   <input
                     id="auth-password"
                     type={showPass ? "text" : "password"}
+                    autoComplete={mode === "register" ? "new-password" : "current-password"}
                     placeholder="Enter password..."
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
                     onFocus={() => setFocused("password")}
                     onBlur={() => setFocused(null)}
                     style={{ ...inputStyle("password"), paddingRight: 48 }}
@@ -705,9 +726,11 @@ export default function WardrobeAuth({ defaultMode = "login" }: WardrobeAuthProp
                     <input
                       id="auth-confirm"
                       type={showConfirm ? "text" : "password"}
+                      autoComplete="new-password"
                       placeholder="Confirm password..."
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
                       onFocus={() => setFocused("confirm")}
                       onBlur={() => setFocused(null)}
                       style={{ ...inputStyle("confirm"), paddingRight: 48 }}

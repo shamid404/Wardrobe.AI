@@ -347,7 +347,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FEATURES ────────────────────────────────────────────── */}
-      <section style={{ maxWidth: "1100px", margin: "0 auto", padding: "100px 24px" }}>
+      <section id="features" style={{ maxWidth: "1100px", margin: "0 auto", padding: "100px 24px", scrollMarginTop: "80px" }}>
         <FadeIn>
           <div style={{ textAlign: "center", marginBottom: "64px" }}>
             <SectionLabel>Features</SectionLabel>
@@ -392,7 +392,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── HOW IT WORKS ────────────────────────────────────────── */}
-      <section style={{ background: "#2D2218", padding: "100px 24px", position: "relative", overflow: "hidden" }}>
+      <section id="how" style={{ background: "#2D2218", padding: "100px 24px", position: "relative", overflow: "hidden", scrollMarginTop: "80px" }}>
         <Orb top="-80px" right="-80px" size={500} color="rgba(200,130,109,0.08)" />
         <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
           <FadeIn>
@@ -515,7 +515,11 @@ export default function LandingPage() {
         </div>
         <div style={{ display: "flex", gap: "32px", flexWrap: "wrap" }}>
           {["Features", "How it works", "Sign in"].map((link) => (
-            <span key={link} onClick={() => router.push(link === "Sign in" ? "/login" : "#")}
+            <span key={link} onClick={() => {
+              if (link === "Sign in") { router.push("/login"); return; }
+              const id = link === "Features" ? "features" : "how";
+              document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+            }}
               style={{ fontSize: "14px", color: "#7A6B5C", cursor: "pointer", transition: "color 0.2s" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "#2D2218")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "#7A6B5C")}>{link}</span>

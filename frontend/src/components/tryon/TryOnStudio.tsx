@@ -250,7 +250,16 @@ export function TryOnStudio() {
   const [showTour, setShowTour] = useState(false);
   const [mobileWardrobeOpen, setMobileWardrobeOpen] = useState(false);
   const [mobilePhotoOpen, setMobilePhotoOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
   const router = useRouter();
+
+  const askConfirm = (opts: { title: string; message: string; confirmLabel: string; onConfirm: () => void }) =>
+    setConfirmDialog(opts);
 
   useEffect(() => {
     if (typeof window !== "undefined" && !localStorage.getItem("wardrobe_tour_done_v1")) {
@@ -536,7 +545,7 @@ export function TryOnStudio() {
 
   useEffect(() => {
     fetch("/api/wardrobe", { headers: authHeaders() })
-      .then((r) => r.ok ? r.json() : [])
+      .then((r) => { if (redirectIfUnauthorized(r.status)) return []; return r.ok ? r.json() : []; })
       .then((items: Array<{ id: string; name: string; category: string; brand: string; size: string; color: string | null; season: string | null; image_url: string | null; status?: string }>) => {
         setWardrobe(items.map((i) => ({
           id: i.id,
@@ -557,6 +566,24 @@ export function TryOnStudio() {
   const handleLogout = () => {
     clearAuth();
     router.push("/login");
+  };
+
+  // Session expired (token rejected by backend) → clear and bounce to login
+  // with a clear message instead of silently failing every action.
+  const redirectIfUnauthorized = (status: number): boolean => {
+    if (status === 401) {
+      clearAuth();
+      router.replace("/login?expired=1");
+      return true;
+    }
+    return false;
+  };
+
+  // Render backend timestamps (ISO strings) as readable local dates,
+  // falling back to the raw value if it is not parseable.
+  const formatDate = (value: string): string => {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? value : d.toLocaleDateString();
   };
 
   const handleDeleteAccount = async () => {
@@ -676,6 +703,7 @@ export function TryOnStudio() {
           season: itemForm.season || null,
         }),
       });
+      if (redirectIfUnauthorized(createRes.status)) return;
       if (!createRes.ok) throw new Error("Failed to create item");
       const created = await createRes.json();
 
@@ -848,6 +876,7 @@ export function TryOnStudio() {
         body: JSON.stringify(payload),
       });
 
+      if (redirectIfUnauthorized(response.status)) return;
       if (!response.ok) {
         const text = await response.text().catch(() => "");
         throw new Error(`HTTP error: ${response.status}. ${text}`);
@@ -881,7 +910,7 @@ export function TryOnStudio() {
   };
 
   return (
-    <div className={`app${showRightPanel ? "" : " panel-collapsed"}${mobileWardrobeOpen ? " mobile-wardrobe-open" : ""}${mobilePhotoOpen ? " mobile-photo-open" : ""}`}>
+    <div className={`app${showRightPanel ? "" : " panel-collapsed"}${activeTab !== "studio" ? " non-studio" : ""}${mobileWardrobeOpen ? " mobile-wardrobe-open" : ""}${mobilePhotoOpen ? " mobile-photo-open" : ""}`}>
       {/* HEADER */}
       <div className="header">
         <div className="header-logo">
@@ -1005,7 +1034,15 @@ export function TryOnStudio() {
                       )}
                       <div
                         className="card-delete"
-                        onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          askConfirm({
+                            title: "Delete item?",
+                            message: `"${item.name}" will be removed from your wardrobe. This can't be undone.`,
+                            confirmLabel: "Delete",
+                            onConfirm: () => deleteItem(item.id),
+                          });
+                        }}
                       >
                         <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
                       </div>
@@ -1096,11 +1133,11 @@ export function TryOnStudio() {
       <div className="main">
         <div className="main-toolbar">
           <div className="toolbar-actions">
-            <button
-              className="btn btn-ghost"
-              onClick={() => setSelected({ top: null, outer: null, bottom: null, headwear: null, shoes: null, accessories: [] })}
-            >
-              Clear
+            <button className="btn btn-primary" disabled={selectedOutfit.length === 0} onClick={generateTryOn}>
+              {tryOnState === "loading"
+                ? <span style={{ display: "flex", alignItems: "center", gap: "8px" }}><svg style={{ animation: "spin 0.8s linear infinite" }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>Generating…</span>
+                : <span style={{ display: "flex", alignItems: "center", gap: "8px" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>Generate outfit</span>
+              }
             </button>
             <button
               className="btn btn-ghost"
@@ -1109,18 +1146,19 @@ export function TryOnStudio() {
             >
               Save outfit
             </button>
-            <button className="btn btn-primary" disabled={selectedOutfit.length === 0} onClick={generateTryOn}>
-              {tryOnState === "loading"
-                ? <span style={{ display: "flex", alignItems: "center", gap: "8px" }}><svg style={{ animation: "spin 0.8s linear infinite" }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>Generating…</span>
-                : <span style={{ display: "flex", alignItems: "center", gap: "8px" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>Generate outfit</span>
-              }
-            </button>
-            <button className="btn btn-ghost btn-toggle-panel" onClick={() => setShowRightPanel(!showRightPanel)} title="Toggle panel" style={{ padding: "10px 12px" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                {showRightPanel ? <polyline points="15 18 9 12 15 6"/> : <polyline points="9 18 15 12 9 6"/>}
-              </svg>
+            <button
+              className="btn btn-ghost"
+              disabled={selectedOutfit.length === 0}
+              onClick={() => setSelected({ top: null, outer: null, bottom: null, headwear: null, shoes: null, accessories: [] })}
+            >
+              Clear
             </button>
           </div>
+          <button className="btn btn-ghost btn-toggle-panel" onClick={() => setShowRightPanel(!showRightPanel)} title={showRightPanel ? "Hide panel" : "Show panel"} style={{ padding: "10px 12px" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {showRightPanel ? <polyline points="9 18 15 12 9 6"/> : <polyline points="15 18 9 12 15 6"/>}
+            </svg>
+          </button>
         </div>
 
         <div className="canvas-area" id="tour-canvas">
@@ -1220,11 +1258,16 @@ export function TryOnStudio() {
                     <button
                       className="btn btn-ghost"
                       disabled={tryOnHistory.length === 0}
-                      onClick={async () => {
-                        await fetch("/history", { method: "DELETE", headers: authHeaders() });
-                        setTryOnHistory([]);
-                        showToast("✓ History cleared");
-                      }}
+                      onClick={() => askConfirm({
+                        title: "Clear try-on history?",
+                        message: `All ${tryOnHistory.length} try-on result${tryOnHistory.length !== 1 ? "s" : ""} will be permanently deleted.`,
+                        confirmLabel: "Clear",
+                        onConfirm: async () => {
+                          await fetch("/history", { method: "DELETE", headers: authHeaders() });
+                          setTryOnHistory([]);
+                          showToast("✓ History cleared");
+                        },
+                      })}
                       style={{ fontSize: "11px" }}
                     >
                       Clear
@@ -1237,7 +1280,12 @@ export function TryOnStudio() {
                     <button
                       className="btn btn-ghost"
                       disabled={wardrobe.length === 0}
-                      onClick={() => { setWardrobe([]); setSelected({ top: null, outer: null, bottom: null, headwear: null, shoes: null, accessories: [] }); showToast("✓ Wardrobe cleared"); }}
+                      onClick={() => askConfirm({
+                        title: "Clear wardrobe view?",
+                        message: `All ${wardrobe.length} item${wardrobe.length !== 1 ? "s" : ""} will be removed from this view.`,
+                        confirmLabel: "Clear",
+                        onConfirm: () => { setWardrobe([]); setSelected({ top: null, outer: null, bottom: null, headwear: null, shoes: null, accessories: [] }); showToast("✓ Wardrobe cleared"); },
+                      })}
                       style={{ fontSize: "11px" }}
                     >
                       Clear
@@ -1411,11 +1459,16 @@ export function TryOnStudio() {
                         )}
                       </div>
                       <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "10px" }}>
-                        {outfit.items.length} item{outfit.items.length !== 1 ? "s" : ""} · {outfit.created_at}
+                        {outfit.items.length} item{outfit.items.length !== 1 ? "s" : ""} · {formatDate(outfit.created_at)}
                       </div>
                       <div style={{ display: "flex", gap: "8px" }}>
                         <button className="btn btn-primary" style={{ flex: 1, fontSize: "12px" }} onClick={() => loadOutfit(outfit)}>Wear it</button>
-                        <button className="btn btn-ghost" style={{ fontSize: "12px", padding: "6px 10px" }} onClick={() => deleteOutfit(outfit.id)}>
+                        <button className="btn btn-ghost" style={{ fontSize: "12px", padding: "6px 10px" }} onClick={() => askConfirm({
+                          title: "Delete outfit?",
+                          message: `"${outfit.name}" will be removed from your saved outfits.`,
+                          confirmLabel: "Delete",
+                          onConfirm: () => deleteOutfit(outfit.id),
+                        })}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         </button>
                       </div>
@@ -2016,7 +2069,12 @@ export function TryOnStudio() {
                 <button
                   className="btn btn-ghost"
                   style={{ marginRight: "auto", color: "var(--error, #e53e3e)", borderColor: "var(--error, #e53e3e)" }}
-                  onClick={() => { deleteItem(editItem!.id); setEditItem(null); }}
+                  onClick={() => askConfirm({
+                    title: "Delete item?",
+                    message: `"${editItem!.name}" will be permanently removed from your wardrobe.`,
+                    confirmLabel: "Delete",
+                    onConfirm: () => { deleteItem(editItem!.id); setEditItem(null); },
+                  })}
                 >
                   Delete
                 </button>
@@ -2038,6 +2096,49 @@ export function TryOnStudio() {
             }
           </div>
           {toast.replace(/^[❌✓🔄]\s?/, "")}
+        </div>
+      )}
+
+      {/* CONFIRM DIALOG (delete item / outfit / clear data) */}
+      {confirmDialog && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}
+          onClick={() => setConfirmDialog(null)}
+        >
+          <div
+            style={{ background: "var(--bg-elevated, #fff)", border: "1px solid rgba(184,88,88,0.35)", borderRadius: "16px", padding: "28px", maxWidth: "380px", width: "90%", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#b85858" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <span style={{ fontSize: "17px", fontWeight: 600, color: "var(--text-primary)", fontFamily: "inherit" }}>
+                {confirmDialog.title}
+              </span>
+            </div>
+            <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: "24px" }}>
+              {confirmDialog.message}
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                className="btn btn-ghost"
+                style={{ flex: 1 }}
+                onClick={() => setConfirmDialog(null)}
+              >
+                Cancel
+              </button>
+              <button
+                style={{ flex: 1, padding: "10px", borderRadius: "var(--radius-md)", border: "none", background: "#b85858", color: "#fff", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "filter 0.2s" }}
+                onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.08)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
+                onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -2074,7 +2175,7 @@ export function TryOnStudio() {
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: "13px", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
-                          <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>{s.created_at}</div>
+                          <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>{formatDate(s.created_at)}</div>
                         </div>
                         <button onClick={(e) => deleteChatSession(s.id, e)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "var(--text-secondary)", padding: "2px 4px", flexShrink: 0, opacity: 0.6 }}>✕</button>
                       </div>

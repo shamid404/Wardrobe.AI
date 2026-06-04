@@ -13,7 +13,7 @@
   --accent-hover:      #B36F5A;
   --text-primary:      #2D2218;
   --text-secondary:    #7A6B5C;
-  --text-tertiary:     #A89A8A;
+  --text-tertiary:     #8A7B66;
   --border-subtle:     #E8DFD2;
   --border-dashed:     #D4C8B8;
   --shadow-card:       0 2px 8px rgba(60,40,20,0.06);
@@ -338,8 +338,23 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   background: var(--bg-primary);
 }
 .app.panel-collapsed {
-  grid-template-columns: 260px 1fr 0px;
+  grid-template-columns: 280px 1fr 0px;
 }
+
+/* Non-studio tabs (History / Outfits / Laundry / Settings):
+   the wardrobe sidebar, body-photo panel and outfit toolbar are
+   studio-only, so collapse them and give the content the full width. */
+.app.non-studio {
+  grid-template-columns: 0 1fr 0;
+}
+.app.non-studio .sidebar-left,
+.app.non-studio .sidebar-right {
+  opacity: 0;
+  pointer-events: none;
+  padding: 0;
+  overflow: hidden;
+}
+.app.non-studio .main-toolbar { display: none; }
 
 /* ---- HEADER ---- */
 .header {
@@ -1396,4 +1411,21 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   }
 
   .landing-cta-inner { padding: 48px 24px !important; }
+}
+
+/* ============================================================
+   AUTH CARD — prevent OTP / form overflow on small screens
+   ============================================================ */
+@media (max-width: 480px) {
+  .auth-card { padding: 32px 22px 28px !important; }
+  .auth-otp-row { gap: 6px !important; }
+  .auth-otp-input {
+    width: 40px !important;
+    height: 50px !important;
+    font-size: 18px !important;
+  }
+}
+@media (max-width: 340px) {
+  .auth-card { padding: 28px 16px 24px !important; }
+  .auth-otp-input { width: 36px !important; height: 46px !important; }
 }

@@ -46,3 +46,6 @@ skills-lock.json
 *.md
 frontend/index.html
 !tma/index.html
+
+
+DEMO/
