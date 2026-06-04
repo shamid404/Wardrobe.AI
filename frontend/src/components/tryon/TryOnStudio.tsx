@@ -1034,6 +1034,7 @@ export function TryOnStudio() {
                       onClick={() => toggleItem(item)}
                       draggable={item.status !== "laundry"}
                       onDragStart={(e) => { e.dataTransfer.setData("text/plain", item.id); e.dataTransfer.effectAllowed = "copy"; }}
+                      onDragEnd={() => setDragOverCanvas(false)}
                       title={item.name}
                       style={{ animation: "cardEnter 0.32s cubic-bezier(0.34,1.1,0.64,1) both", animationDelay: `${Math.min(i, 9) * 50}ms`, opacity: item.status === "laundry" ? 0.55 : 1, cursor: item.status === "laundry" ? "default" : "pointer" }}
                     >
@@ -1198,7 +1199,7 @@ export function TryOnStudio() {
           <div key={activeTab} className="canvas-tab-wrapper" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", animation: `tabSlide${slideDir === "left" ? "FromRight" : "FromLeft"} 0.28s ease both` }}>
           {activeTab === "settings" && (
             <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "32px" }}>
-            <div style={{ maxWidth: "520px" }}>
+            <div style={{ maxWidth: "520px", margin: "0 auto" }}>
               <div style={{ marginBottom: "32px" }}>
                 <div className="panel-title" style={{ marginBottom: "16px" }}>Profile</div>
                 <div className="analysis-card">
@@ -1465,7 +1466,7 @@ export function TryOnStudio() {
             />
             ) : (
             <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "24px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px", maxWidth: "960px", margin: "0 auto" }}>
                 {savedOutfits.map((outfit) => (
                   <div key={outfit.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "12px", overflow: "hidden", background: "var(--surface)" }}>
                     <OutfitFlatlayPreview items={outfit.items} />
@@ -1506,7 +1507,7 @@ export function TryOnStudio() {
               />
               ) : (
               <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "24px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "16px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "16px", maxWidth: "960px", margin: "0 auto" }}>
                   {tryOnHistory.map((item) => (
                     <div key={item.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "12px", overflow: "hidden", background: "var(--surface)" }}>
                       <img src={item.image} style={{ width: "100%", display: "block", objectFit: "cover", aspectRatio: "3/4" }} />
@@ -2620,32 +2621,42 @@ function OnboardingTour({ onDone }: { onDone: () => void }) {
 }
 
 // ─── OutfitFlatlayPreview ────────────────────────────────────────
-// Renders a saved outfit as a mini flat-lay (echoes the studio canvas):
-// cream background with grid, items ordered top→bottom→shoes→accessories.
+// Renders a saved outfit as a flat-lay: garments stacked vertically in
+// the centre (head→top→outer→bottom→shoes), accessories in a side column.
 function OutfitFlatlayPreview({ items }: { items: { item_id: string; name: string; category: string; image_url: string | null }[] }) {
-  const ORDER = ["headwear", "top", "outer", "bottom", "shoes", "accessory"];
-  const ordered = [...items].sort((a, b) => {
-    const ia = ORDER.indexOf(a.category); const ib = ORDER.indexOf(b.category);
-    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-  });
+  const GARMENT_ORDER = ["headwear", "top", "outer", "bottom", "shoes"];
+  const garments = items
+    .filter((i) => i.category !== "accessory")
+    .sort((a, b) => GARMENT_ORDER.indexOf(a.category) - GARMENT_ORDER.indexOf(b.category));
+  const accessories = items.filter((i) => i.category === "accessory");
+
+  const renderItem = (oi: { item_id: string; name: string; image_url: string | null }, size: number) => (
+    <div key={oi.item_id} title={oi.name} style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", filter: "drop-shadow(0 5px 12px rgba(60,40,20,0.14))" }}>
+      {oi.image_url ? (
+        <img src={oi.image_url} alt={oi.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+      ) : (
+        <div style={{ opacity: 0.2, display: "flex" }}><svg width={size * 0.4} height={size * 0.4} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+      )}
+    </div>
+  );
+
   return (
     <div style={{
-      display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "6px",
-      padding: "16px 12px", minHeight: "140px",
+      display: "flex", alignItems: "center", justifyContent: "center", gap: "14px",
+      padding: "22px 16px", minHeight: "260px",
       background: "var(--bg-primary)",
-      backgroundImage: "linear-gradient(rgba(176,132,86,0.10) 1px, transparent 1px), linear-gradient(90deg, rgba(176,132,86,0.10) 1px, transparent 1px)",
-      backgroundSize: "20px 20px",
       borderBottom: "1px solid var(--border-subtle)",
     }}>
-      {ordered.map((oi) => (
-        <div key={oi.item_id} title={oi.name} style={{ width: "64px", height: "64px", display: "flex", alignItems: "center", justifyContent: "center", filter: "drop-shadow(0 4px 10px rgba(60,40,20,0.12))" }}>
-          {oi.image_url ? (
-            <img src={oi.image_url} alt={oi.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
-          ) : (
-            <div style={{ opacity: 0.2, display: "flex" }}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-          )}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+        {garments.length > 0 ? garments.map((g) => renderItem(g, 96)) : (
+          <div style={{ opacity: 0.2, display: "flex" }}><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+        )}
+      </div>
+      {accessories.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", alignSelf: "center" }}>
+          {accessories.map((a) => renderItem(a, 52))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

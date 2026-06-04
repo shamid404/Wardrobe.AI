@@ -363,6 +363,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   pointer-events: none;
   border-bottom-color: transparent;
 }
+/* No decorative canvas grid on non-studio tabs (History / Outfits / Settings) */
+.app.non-studio .canvas-area::before { display: none; }
 
 /* ---- HEADER ---- */
 .header {
