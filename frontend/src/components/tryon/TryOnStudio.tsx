@@ -1025,7 +1025,7 @@ export function TryOnStudio() {
           <a href="#" className={activeTab === "studio" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("studio"); }}>
             Studio
           </a>
-          <a href="#" className={activeTab === "plan" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("plan"); }}>
+          <a id="tour-plan" href="#" className={activeTab === "plan" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("plan"); }}>
             Plan
           </a>
           <a href="#" className={activeTab === "history" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("history"); }}>
@@ -2563,7 +2563,7 @@ export function TryOnStudio() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
           Studio
         </button>
-        <button onClick={() => { setActiveTab("plan"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "plan" ? "active" : ""}>
+        <button id="tour-plan-mobile" onClick={() => { setActiveTab("plan"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "plan" ? "active" : ""}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           Plan
         </button>
@@ -2575,7 +2575,7 @@ export function TryOnStudio() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/></svg>
           Outfits
         </button>
-        <button onClick={() => { setActiveTab("laundry"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "laundry" ? "active" : ""}>
+        <button id="tour-laundry-mobile" onClick={() => { setActiveTab("laundry"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "laundry" ? "active" : ""}>
           <span style={{ fontSize: "16px", lineHeight: 1 }}>🧺</span>
           Laundry{laundryItems.length > 0 ? ` (${laundryItems.length})` : ""}
         </button>
@@ -2597,11 +2597,14 @@ const TOUR_STEPS: { id: string; mobileId?: string; mobilePos?: TourPos; title: s
     title: "Your Wardrobe",
     sub: "All your clothes live here. Filter by category, color, or season — then click any item to add it to the canvas.",
     pos: "right",
+    mobilePos: "bottom",
   },
   {
     id: "tour-canvas",
+    mobileId: "tour-wardrobe-mobile",
+    mobilePos: "bottom",
     title: "Try-On Canvas",
-    sub: "Compose your outfit here. Add items from the left, then click Try On to see the virtual try-on result.",
+    sub: "Compose your outfit here. Add items from your wardrobe, then tap Try On to see the virtual try-on result.",
     pos: "left",
   },
   {
@@ -2609,12 +2612,20 @@ const TOUR_STEPS: { id: string; mobileId?: string; mobilePos?: TourPos; title: s
     mobileId: "mobile-action-bar",
     mobilePos: "top",
     title: "Studio · History · Outfits",
-    sub: "Switch between your workspace, past try-on results, saved outfits, and laundry using the navigation above.",
+    sub: "Switch between your workspace, past try-on results, saved outfits, and more using the navigation.",
+    pos: "bottom",
+  },
+  {
+    id: "tour-plan",
+    mobileId: "tour-plan-mobile",
+    mobilePos: "top",
+    title: "Weekly Planner",
+    sub: "Plan your outfits day by day. The AI considers the weather and your wardrobe to suggest the perfect look for each day.",
     pos: "bottom",
   },
   {
     id: "tour-laundry",
-    mobileId: "mobile-action-bar",
+    mobileId: "tour-laundry-mobile",
     mobilePos: "top",
     title: "Laundry Mode",
     sub: "Send clothes to laundry so the AI and canvas know they are unavailable. Return them when ready to wear again.",
@@ -2622,6 +2633,7 @@ const TOUR_STEPS: { id: string; mobileId?: string; mobilePos?: TourPos; title: s
   },
   {
     id: "tour-chat",
+    mobileId: "tour-chat",
     mobilePos: "top",
     title: "AI Stylist",
     sub: "Your personal fashion advisor. Ask for outfit ideas, weather-based suggestions, and styling tips anytime.",

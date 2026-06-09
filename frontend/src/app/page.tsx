@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 
 // ─── SVG Icons ──────────────────────────────────────────────────
@@ -104,10 +104,12 @@ function IconCamera() {
 
 // ─── Data ────────────────────────────────────────────────────────
 const features = [
-  { Icon: IconWardrobe, title: "Smart Wardrobe", desc: "Upload your clothes once. AI automatically detects category, color, and season for every item.", accent: "#C8826D", bg: "rgba(200,130,109,0.07)" },
-  { Icon: IconSparkle, title: "Virtual Try-On", desc: "See how outfits look on you before getting dressed. Powered by state-of-the-art AI generation.", accent: "#7C9BC0", bg: "rgba(124,155,192,0.07)" },
-  { Icon: IconBot, title: "AI Style Assistant", desc: "Chat with your personal stylist. It knows your wardrobe and weather to build perfect outfits.", accent: "#6B9E72", bg: "rgba(107,158,114,0.07)" },
-  { Icon: IconSun, title: "Weather-Aware", desc: "Get outfit suggestions based on today's forecast and your local 7-day weather.", accent: "#B07896", bg: "rgba(176,120,150,0.07)" },
+  { Icon: IconCamera,   title: "Snap a Photo, Skip the Tagging",       desc: "Photograph any item and AI handles the rest — category, color, pattern, season. Your whole closet digitized in an afternoon. No spreadsheets, no manual entry.", accent: "#C8826D", bg: "rgba(200,130,109,0.07)" },
+  { Icon: IconSparkle,  title: "See It On You Before You Wear It",      desc: "Upload your photo, pick clothes from your wardrobe, and get a photorealistic try-on in seconds. Know it looks good before you leave the house.", accent: "#7C9BC0", bg: "rgba(124,155,192,0.07)" },
+  { Icon: IconWardrobe, title: "Outfits From What You Already Own",     desc: "Pick any item and AI builds complete outfits around it using your existing wardrobe. Discover combinations you never thought to try. Stop buying things you don't need.", accent: "#6B9E72", bg: "rgba(107,158,114,0.07)" },
+  { Icon: IconSun,      title: "Dressed for the Weather, Every Day",    desc: "Rain at 4 PM? Cold snap tomorrow? Wardrobe.AI checks the hourly forecast and suggests layers that make sense for your full day — not just the morning.", accent: "#B07896", bg: "rgba(176,120,150,0.07)" },
+  { Icon: IconBot,      title: "AI Stylist, Always On",                 desc: "Ask anything — \"what goes with these jeans?\", \"give me a date night look\". Your stylist knows your full wardrobe, the weather, and your saved outfits.", accent: "#C8826D", bg: "rgba(200,130,109,0.07)" },
+  { Icon: IconGrid,     title: "Plan Your Week, Not Just Your Morning", desc: "Map outfits to each day of the week. See what's in laundry, what's available, and get AI suggestions per day — so Monday's panic never happens again.", accent: "#7C9BC0", bg: "rgba(124,155,192,0.07)" },
 ];
 
 const steps = [
@@ -175,7 +177,7 @@ export default function LandingPage() {
   const navShadow = useTransform(scrollY, [0, 60], ["0 4px 24px rgba(60,40,20,0.10)", "0 2px 20px rgba(60,40,20,0.08)"]);
 
   return (
-    <div style={{ fontFamily: "var(--font-sans, Inter, sans-serif)", background: "#F4ECE0", color: "#2D2218", minHeight: "100vh", overflowX: "hidden" }}>
+    <div style={{ fontFamily: "var(--font-sans, Inter, sans-serif)", background: "#F4ECE0", color: "#2D2218", minHeight: "100vh", overflowX: "clip" }}>
 
       {/* ── NAV ─────────────────────────────────────────────────── */}
       <motion.nav className="landing-nav" style={{
@@ -207,7 +209,8 @@ export default function LandingPage() {
       </motion.nav>
 
       {/* ── HERO ────────────────────────────────────────────────── */}
-      <section className="landing-hero" style={{ minHeight: "100vh", display: "flex", alignItems: "center", padding: "120px 48px 80px", position: "relative", overflow: "hidden", maxWidth: "1300px", margin: "0 auto", gap: "64px" }}>
+      <div style={{ height: "200vh", position: "relative" }}>
+      <section className="landing-hero" style={{ position: "sticky", top: 0, minHeight: "100vh", display: "flex", alignItems: "center", padding: "120px 48px 80px", overflow: "hidden", maxWidth: "1300px", margin: "0 auto", gap: "64px" }}>
         {/* Orbs */}
         <motion.div aria-hidden animate={{ y: [0, -18, 0], x: [0, 8, 0] }} transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
           style={{ position: "absolute", top: "10%", left: "-100px", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle,rgba(200,130,109,0.15) 0%,transparent 70%)", pointerEvents: "none" }} />
@@ -299,6 +302,10 @@ export default function LandingPage() {
           </motion.div>
         </motion.div>
       </section>
+      </div>
+
+      {/* ── PHONE SCROLL DEMO ───────────────────────────────────── */}
+      <PhoneScrollDemo />
 
       {/* ── MARQUEE ─────────────────────────────────────────────── */}
       <div style={{ overflow: "hidden", borderTop: "1px solid #E8DFD2", borderBottom: "1px solid #E8DFD2", background: "#FAF5EE", padding: "18px 0" }}>
@@ -329,34 +336,33 @@ export default function LandingPage() {
         <ClothingPhotoGrid />
       </section>
 
-      {/* ── APP MOCKUP ──────────────────────────────────────────── */}
-      <section className="landing-mockup-section" style={{ padding: "100px 24px", background: "#F4ECE0", overflow: "hidden" }}>
-        <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-          <FadeIn>
-            <div style={{ textAlign: "center", marginBottom: "64px" }}>
-              <SectionLabel>See it in action</SectionLabel>
-              <SectionTitle>Your wardrobe, beautifully organized</SectionTitle>
-              <SectionSub>Everything you need in one clean, intuitive interface.</SectionSub>
-            </div>
-          </FadeIn>
-
-          <FadeIn delay={100}>
-            <AppMockup />
-          </FadeIn>
-        </div>
-      </section>
 
       {/* ── FEATURES ────────────────────────────────────────────── */}
       <section id="features" style={{ maxWidth: "1100px", margin: "0 auto", padding: "100px 24px", scrollMarginTop: "80px" }}>
         <FadeIn>
-          <div style={{ textAlign: "center", marginBottom: "64px" }}>
+          <div style={{ marginBottom: "72px" }}>
             <SectionLabel>Features</SectionLabel>
-            <SectionTitle>Everything you need to dress better</SectionTitle>
-            <SectionSub>One app to organize, style, and visualize your entire wardrobe.</SectionSub>
+            <SectionTitle>Everything you own.<br />Finally working for you.</SectionTitle>
+            <SectionSub>Most people wear 20% of their wardrobe. Wardrobe.AI helps you wear the rest — with daily outfit ideas, smart pairings, and virtual try-on powered by AI.</SectionSub>
           </div>
         </FadeIn>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: "20px" }}>
-          {features.map((f, i) => <FadeIn key={f.title} delay={i * 80}><FeatureCard {...f} /></FadeIn>)}
+        <div style={{ borderTop: "1px solid #E8DFD2" }}>
+          {features.map((f, i) => (
+            <motion.div key={f.title}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.5, delay: i * 0.06 }}
+              style={{ borderBottom: "1px solid #E8DFD2", padding: "36px 0", display: "grid", gridTemplateColumns: "56px 280px 1fr", gap: "32px", alignItems: "start" }}
+            >
+              <div style={{ fontFamily: "var(--font-serif,'Playfair Display',serif)", fontSize: "13px", fontWeight: 600, color: f.accent, letterSpacing: "0.1em", paddingTop: "3px" }}>0{i + 1}</div>
+              <div>
+                <div style={{ color: f.accent, marginBottom: "10px" }}><f.Icon /></div>
+                <div style={{ fontSize: "17px", fontWeight: 600, color: "#2D2218", lineHeight: 1.3, letterSpacing: "-0.01em" }}>{f.title}</div>
+              </div>
+              <div style={{ fontSize: "15px", color: "#7A6B5C", lineHeight: 1.8, paddingTop: "2px" }}>{f.desc}</div>
+            </motion.div>
+          ))}
         </div>
       </section>
 
@@ -388,22 +394,6 @@ export default function LandingPage() {
           <FadeIn delay={100}>
             <ComparisonSection />
           </FadeIn>
-        </div>
-      </section>
-
-      {/* ── HOW IT WORKS ────────────────────────────────────────── */}
-      <section id="how" style={{ background: "#2D2218", padding: "100px 24px", position: "relative", overflow: "hidden", scrollMarginTop: "80px" }}>
-        <Orb top="-80px" right="-80px" size={500} color="rgba(200,130,109,0.08)" />
-        <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-          <FadeIn>
-            <div style={{ textAlign: "center", marginBottom: "72px" }}>
-              <SectionLabel>How it works</SectionLabel>
-              <SectionTitle light>Three steps to your perfect look</SectionTitle>
-            </div>
-          </FadeIn>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: "24px" }}>
-            {steps.map((s, i) => <FadeIn key={s.num} delay={i * 100}><StepCard {...s} /></FadeIn>)}
-          </div>
         </div>
       </section>
 
@@ -1002,6 +992,154 @@ function TryOnShowcase() {
           <button key={side} onClick={() => setActive(side)}
             style={{ width: active === side ? "28px" : "8px", height: "8px", borderRadius: "4px", border: "none", background: active === side ? "#C8826D" : "#D4C8B8", cursor: "pointer", transition: "all 0.3s ease", padding: 0 }} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Phone Scroll Demo ───────────────────────────────────────────
+const CLOTHES_ITEMS = [
+  { img: "/main_page/cap.png",              label: "Cap",        x: -250, y: -140 },
+  { img: "/main_page/shirt_aitu.png",       label: "AITU Tee",   x:  250, y: -140 },
+  { img: "/main_page/bag_aksesuaries.png",  label: "Bag",        x: -290, y:   20 },
+  { img: "/main_page/shoes_nike.png",       label: "Nike",       x: -240, y:  150 },
+  { img: "/main_page/shirts.png",           label: "Shorts",     x:  240, y:  110 },
+];
+
+const PHONE_SCREENS = [
+  "/demo_phone/sign_in.jpg",
+  "/demo_phone/studio.jpg",
+  "/demo_phone/studio_wardrobe.jpg",
+  "/demo_phone/studio_aichat.jpg",
+  "/demo_phone/studio_uploadphoto.jpg",
+  "/demo_phone/history.jpg",
+  "/demo_phone/plan.jpg",
+  "/demo_phone/outfits.jpg",
+  "/demo_phone/laundry.jpg",
+];
+
+function IPhoneFrame({ screenIdx }: { screenIdx: number }) {
+  return (
+    <div style={{ width: "220px", height: "470px", background: "#1A1A1A", borderRadius: "44px", padding: "12px", boxShadow: "0 60px 120px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.2)", position: "relative" }}>
+      <div style={{ position: "absolute", top: "18px", left: "50%", transform: "translateX(-50%)", width: "90px", height: "28px", background: "#000", borderRadius: "20px", zIndex: 10 }} />
+      <div style={{ position: "absolute", left: "-3px", top: "100px", width: "3px", height: "30px", background: "#333", borderRadius: "2px 0 0 2px" }} />
+      <div style={{ position: "absolute", left: "-3px", top: "140px", width: "3px", height: "30px", background: "#333", borderRadius: "2px 0 0 2px" }} />
+      <div style={{ position: "absolute", right: "-3px", top: "130px", width: "3px", height: "50px", background: "#333", borderRadius: "0 2px 2px 0" }} />
+      <div style={{ width: "100%", height: "100%", borderRadius: "36px", overflow: "hidden", background: "#0A0A0A", display: "flex", flexDirection: "column" }}>
+        {/* Status bar */}
+        <div style={{ height: "42px", flexShrink: 0, background: "#0A0A0A", display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "0 18px 8px", zIndex: 2 }}>
+          <span style={{ fontSize: "11px", fontWeight: 700, color: "#fff", letterSpacing: "-0.01em" }}>9:41</span>
+          <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+            <svg width="13" height="9" viewBox="0 0 13 9" fill="white" opacity={0.9}>
+              <rect x="0" y="5" width="2.5" height="4" rx="0.4"/>
+              <rect x="3.2" y="3" width="2.5" height="6" rx="0.4"/>
+              <rect x="6.4" y="1" width="2.5" height="8" rx="0.4"/>
+              <rect x="9.6" y="0" width="2.5" height="9" rx="0.4"/>
+            </svg>
+            <svg width="20" height="10" viewBox="0 0 20 10" fill="none">
+              <rect x="0.5" y="0.5" width="16" height="9" rx="2" stroke="white" strokeOpacity="0.4"/>
+              <rect x="1.5" y="1.5" width="11" height="7" rx="1.2" fill="white"/>
+              <path d="M17.5 3v4a1.5 1.5 0 000-4z" fill="white" fillOpacity="0.35"/>
+            </svg>
+          </div>
+        </div>
+        {/* Screenshot */}
+        <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+          {screenIdx === 0 ? (
+            <motion.img key="sign_in" src={PHONE_SCREENS[0]} alt=""
+              initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
+              style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", display: "block" }} />
+          ) : (
+            <img src={PHONE_SCREENS[screenIdx]} alt=""
+              style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", display: "block" }} />
+          )}
+        </div>
+        {/* Home bar + link */}
+        <div style={{ height: "36px", flexShrink: 0, background: "#0A0A0A", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "5px" }}>
+          <span style={{ fontSize: "8px", color: "rgba(200,130,109,0.75)", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>wardrobe.ai</span>
+          <div style={{ width: "56px", height: "3px", background: "rgba(255,255,255,0.25)", borderRadius: "2px" }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PhoneScrollDemo() {
+  const ref = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
+  const [progress, setProgress] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  useEffect(() => scrollYProgress.on("change", v => setProgress(v)), [scrollYProgress]);
+
+  const phoneVisible   = progress > 0.45;
+  const screenIdx      = Math.min(8, Math.floor(Math.max(0, progress - 0.60) / 0.044));
+  const itemThresholds = [0.04, 0.10, 0.17, 0.24, 0.31];
+
+  if (isMobile) {
+    return (
+      <div style={{ background: "#1C1410", padding: "80px 24px 60px", textAlign: "center" }}>
+        <SectionLabel>See it in action</SectionLabel>
+        <SectionTitle light>Your wardrobe, elevated</SectionTitle>
+        <div style={{ marginTop: "40px", display: "flex", justifyContent: "center" }}>
+          <IPhoneFrame screenIdx={3} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} style={{ height: "1200vh", position: "relative" }}>
+      <div style={{ position: "sticky", top: 0, height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "linear-gradient(160deg,#1C1410 0%,#2D1F14 50%,#1A1008 100%)", overflow: "hidden" }}>
+        <Orb top="-100px" right="-100px" size={500} color="rgba(200,130,109,0.06)" />
+        <Orb bottom="-80px" left="-80px" size={400} color="rgba(124,155,192,0.05)" />
+
+        <div style={{ position: "absolute", top: "48px", textAlign: "center", zIndex: 10 }}>
+          <SectionLabel>See it in action</SectionLabel>
+          <SectionTitle light>Your wardrobe, elevated</SectionTitle>
+        </div>
+
+        <div style={{ position: "relative", width: "640px", height: "520px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {CLOTHES_ITEMS.map((item, i) => (
+            <motion.div key={item.label}
+              animate={{
+                opacity: progress > itemThresholds[i] ? 1 : 0,
+                x: progress > itemThresholds[i] ? item.x : 0,
+                y: progress > itemThresholds[i] ? item.y : -20,
+                scale: progress > itemThresholds[i] ? 1 : 0.7,
+              }}
+              transition={{ duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }}
+              style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}
+            >
+              <div style={{ width: "100px", height: "118px", borderRadius: "16px", background: "rgba(244,236,224,0.06)", border: "1px solid rgba(244,236,224,0.12)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                <img src={item.img} alt={item.label} style={{ width: "86px", height: "100px", objectFit: "contain" }} />
+              </div>
+              <span style={{ fontSize: "11px", color: "rgba(244,236,224,0.6)", fontWeight: 500, letterSpacing: "0.03em" }}>{item.label}</span>
+            </motion.div>
+          ))}
+
+          <AnimatePresence>
+            {phoneVisible && (
+              <div style={{ position: "absolute", zIndex: 5 }}>
+                <IPhoneFrame screenIdx={screenIdx} />
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div style={{ position: "absolute", bottom: "32px", display: "flex", gap: "6px", zIndex: 1 }}>
+          {PHONE_SCREENS.map((_, i) => (
+            <div key={i} style={{ width: screenIdx === i && phoneVisible ? "16px" : "5px", height: "5px", borderRadius: "3px", background: screenIdx >= i && phoneVisible ? "#C8826D" : "rgba(244,236,224,0.15)", transition: "all 0.3s ease" }} />
+          ))}
+        </div>
       </div>
     </div>
   );
