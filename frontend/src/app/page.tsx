@@ -305,7 +305,9 @@ export default function LandingPage() {
       </div>
 
       {/* ── PHONE SCROLL DEMO ───────────────────────────────────── */}
-      <PhoneScrollDemo />
+      <div id="how" style={{ scrollMarginTop: "80px" }}>
+        <PhoneScrollDemo />
+      </div>
 
       {/* ── MARQUEE ─────────────────────────────────────────────── */}
       <div style={{ overflow: "hidden", borderTop: "1px solid #E8DFD2", borderBottom: "1px solid #E8DFD2", background: "#FAF5EE", padding: "18px 0" }}>
@@ -353,6 +355,7 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.5, delay: i * 0.06 }}
+              className="feature-row"
               style={{ borderBottom: "1px solid #E8DFD2", padding: "36px 0", display: "grid", gridTemplateColumns: "56px 280px 1fr", gap: "32px", alignItems: "start" }}
             >
               <div style={{ fontFamily: "var(--font-serif,'Playfair Display',serif)", fontSize: "13px", fontWeight: 600, color: f.accent, letterSpacing: "0.1em", paddingTop: "3px" }}>0{i + 1}</div>
@@ -360,7 +363,7 @@ export default function LandingPage() {
                 <div style={{ color: f.accent, marginBottom: "10px" }}><f.Icon /></div>
                 <div style={{ fontSize: "17px", fontWeight: 600, color: "#2D2218", lineHeight: 1.3, letterSpacing: "-0.01em" }}>{f.title}</div>
               </div>
-              <div style={{ fontSize: "15px", color: "#7A6B5C", lineHeight: 1.8, paddingTop: "2px" }}>{f.desc}</div>
+              <div className="feature-row-desc" style={{ fontSize: "15px", color: "#7A6B5C", lineHeight: 1.8, paddingTop: "2px" }}>{f.desc}</div>
             </motion.div>
           ))}
         </div>

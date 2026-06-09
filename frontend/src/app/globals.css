@@ -1377,6 +1377,16 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 }
 
 @media (max-width: 768px) {
+  .feature-row {
+    grid-template-columns: 40px 1fr !important;
+    gap: 16px 20px !important;
+    padding: 28px 0 !important;
+  }
+  .feature-row-desc {
+    grid-column: 1 / -1 !important;
+    padding-top: 0 !important;
+  }
+
   .landing-nav { padding: 0 14px !important; }
   .landing-nav-btns { gap: 6px !important; }
   .landing-nav-btns button { padding: 6px 12px !important; font-size: 13px !important; }
