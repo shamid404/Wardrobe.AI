@@ -884,14 +884,14 @@ function StepCard({ num, Icon, title, desc }: { num: string; Icon: () => React.J
 
 // ─── Clothing Photo Grid ──────────────────────────────────────────
 const clothingPhotos = [
-  { src: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400&q=80&fit=crop", label: "Outerwear" },
-  { src: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80&fit=crop", label: "Footwear" },
-  { src: "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=400&q=80&fit=crop", label: "Tops" },
-  { src: "https://images.unsplash.com/photo-1495105787522-5334e3ffa0ef?w=400&q=80&fit=crop", label: "Bottoms" },
-  { src: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&q=80&fit=crop", label: "Bags" },
-  { src: "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=400&q=80&fit=crop", label: "Dresses" },
-  { src: "https://images.unsplash.com/photo-1583744946564-b52ac1c389c8?w=400&q=80&fit=crop", label: "Accessories" },
-  { src: "https://images.unsplash.com/photo-1584370848010-d7fe6bc767ec?w=400&q=80&fit=crop", label: "Knitwear" },
+  { src: "/main_page/photo_top.jpg",       label: "Top"         },
+  { src: "/main_page/photo_bottom.jpg",    label: "Bottoms"     },
+  { src: "/main_page/photo_outerwear.jpg", label: "Outerwear"   },
+  { src: "/main_page/photo_shoes.jpg",     label: "Shoes"       },
+  { src: "/main_page/photo_bag.jpg",       label: "Bag"         },
+  { src: "/main_page/photo_dress.jpg",     label: "Dress"       },
+  { src: "/main_page/photo_knitwear.jpg",  label: "Knitwear"    },
+  { src: "/main_page/photo_accessory.jpg", label: "Accessory"   },
 ];
 
 function ClothingPhotoGrid() {
@@ -909,8 +909,8 @@ function ClothingPhotoGrid() {
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
             style={{ flexShrink: 0, width: "200px", borderRadius: "18px", overflow: "hidden", boxShadow: "0 4px 20px rgba(60,40,20,0.10)", background: "#fff", cursor: "default" }}
           >
-            <div style={{ height: "240px", overflow: "hidden" }}>
-              <img src={item.src} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div style={{ height: "240px", overflow: "hidden", background: "#F4ECE0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <img src={item.src} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain", padding: "16px" }} />
             </div>
             <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: "13px", fontWeight: 600, color: "#2D2218" }}>{item.label}</span>

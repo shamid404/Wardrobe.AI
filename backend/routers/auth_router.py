@@ -32,9 +32,11 @@ _pending_lock = threading.Lock()
 # Положи свои фото сюда: backend/static/defaults/
 # URL будет доступен как http://localhost:8000/static/defaults/<filename>
 _DEFAULT_ITEMS = [
-    {"name": "Classic White Tee",   "category": "top",    "brand": "Basics", "size": "M",  "image_file": "default_top.png"},
-    {"name": "Slim Jeans",          "category": "bottom", "brand": "Denim",  "size": "32", "image_file": "default_bottom.png"},
-    {"name": "Light Blazer",        "category": "outer",  "brand": "Smart",  "size": "M",  "image_file": "default_outer.png"},
+    {"name": "Grey Cap",      "category": "headwear",  "brand": None,   "size": "M",  "image_file": "cap.png"},
+    {"name": "AITU Tee",      "category": "top",       "brand": "AITU", "size": "M",  "image_file": "shirt_aitu.png"},
+    {"name": "Casual Shorts", "category": "bottom",    "brand": None,   "size": "M",  "image_file": "shorts.png"},
+    {"name": "Nike Sneakers", "category": "shoes",     "brand": "Nike", "size": "42", "image_file": "shoes_nike.png"},
+    {"name": "Everyday Bag",  "category": "accessory", "brand": None,   "size": None, "image_file": "bag.png"},
 ]
 
 router = APIRouter(prefix="/auth", tags=["auth"])
