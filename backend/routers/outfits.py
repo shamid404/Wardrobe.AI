@@ -8,6 +8,8 @@ from ..auth import get_current_user
 from ..db.database import get_db
 from ..db.models import Outfit, OutfitItem, WardrobeItem
 from ..models.schemas import OutfitCreate, OutfitOut, OutfitItemOut
+from ..services.gemini import call_gemini_json
+from ..services.ml_service import score_outfit as ml_score_outfit
 
 router = APIRouter(prefix="/outfits", tags=["outfits"])
 
@@ -69,6 +71,67 @@ def create_outfit(data: OutfitCreate, user=Depends(get_current_user), db: Sessio
     db.commit()
     db.refresh(outfit)
     return _to_out(outfit)
+
+
+@router.post("/{outfit_id}/score")
+def score_outfit(outfit_id: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    outfit = db.query(Outfit).filter(
+        Outfit.id == outfit_id,
+        Outfit.user_id == user["id"],
+    ).first()
+    if not outfit:
+        raise HTTPException(status_code=404, detail="Outfit not found")
+
+    items = [oi.wardrobe_item for oi in outfit.items if oi.wardrobe_item]
+    if not items:
+        return {"fit_score": 70, "style_score": 70, "color_harmony": 70}
+
+    items_desc = []
+    for it in items:
+        parts = [f"{it.name} ({it.category})"]
+        if it.color:
+            parts.append(f"color: {it.color}")
+        if it.brand:
+            parts.append(f"brand: {it.brand}")
+        if it.season:
+            parts.append(f"season: {it.season}")
+        items_desc.append(", ".join(parts))
+
+    # Primary: local CLIP + MLP model
+    ml_result = ml_score_outfit(items_desc)
+    ml_is_fallback = all(ml_result.get(k) == 75 for k in ("fit_score", "style_score", "color_harmony"))
+
+    if not ml_is_fallback:
+        return ml_result
+
+    # Secondary: Gemini (only when ML models aren't loaded / failed)
+    prompt = f"""You are a fashion expert. Score this outfit on three metrics, each 0-100.
+
+Outfit: "{outfit.name}"
+Items:
+{chr(10).join(f"  - {d}" for d in items_desc)}
+
+Return JSON only:
+{{"fit_score": <int 0-100>, "style_score": <int 0-100>, "color_harmony": <int 0-100>}}
+
+fit_score: how well items work together functionally (occasion, season, layering)
+style_score: overall aesthetic coherence and trend relevance
+color_harmony: how well the colors complement each other"""
+
+    result, _ = call_gemini_json(
+        contents=[{"role": "user", "parts": [{"text": prompt}]}],
+        max_tokens=64,
+        temperature=0.3,
+    )
+
+    if result and all(k in result for k in ("fit_score", "style_score", "color_harmony")):
+        return {
+            "fit_score":     max(0, min(100, int(result["fit_score"]))),
+            "style_score":   max(0, min(100, int(result["style_score"]))),
+            "color_harmony": max(0, min(100, int(result["color_harmony"]))),
+        }
+
+    return ml_result  # 75/75/75 neutral fallback
 
 
 @router.delete("/{outfit_id}", status_code=status.HTTP_204_NO_CONTENT)

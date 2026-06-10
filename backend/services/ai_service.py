@@ -87,22 +87,16 @@ async def generate_virtual_tryon(
 
 
 def mock_ai_analysis(item: dict) -> AnalysisResult:
-    colors = ["Warm beige", "Deep navy", "Ivory white", "Charcoal grey", "Terracotta"]
-    fabrics = ["Cotton blend", "Pure silk", "Linen", "Wool", "Polyester mix"]
+    from .ml_service import score_outfit
+    description = item.get("description") or item.get("name") or item.get("category", "clothing item")
+    scores = score_outfit([description])
     type_map = {"top": "Upper body", "bottom": "Lower body", "outer": "Outerwear"}
-    recs = [
-        "Great fit for your body type!",
-        "Pairs well with neutral tones.",
-        "Consider layering with a blazer.",
-        "Perfect for casual occasions.",
-        "Excellent color harmony detected.",
-    ]
     return AnalysisResult(
-        fit_score=random.randint(78, 97),
-        style_score=random.randint(75, 95),
-        color_harmony=random.randint(80, 98),
+        fit_score=scores["fit_score"],
+        style_score=scores["style_score"],
+        color_harmony=scores["color_harmony"],
         garment_type=type_map.get(item.get("category", "top"), "Unknown"),
-        detected_color=random.choice(colors),
-        fabric=random.choice(fabrics),
-        recommendation=random.choice(recs),
+        detected_color=item.get("color", ""),
+        fabric="",
+        recommendation="",
     )

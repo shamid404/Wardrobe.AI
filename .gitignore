@@ -49,3 +49,6 @@ frontend/index.html
 
 
 DEMO/
+
+# ML models (large files — store on Google Drive / HuggingFace)
+backend/ml_models/blip-fashion/

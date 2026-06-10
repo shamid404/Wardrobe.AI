@@ -2,6 +2,7 @@
 
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { motion, animate, AnimatePresence } from "framer-motion";
 import { clearAuth, getUser, saveUser, authHeaders } from "@/lib/auth";
 
 type CategoryKey = "top" | "bottom" | "outer" | "headwear" | "shoes" | "accessory";
@@ -272,6 +273,7 @@ export function TryOnStudio() {
   const [planningDay, setPlanningDay] = useState<string | null>(null);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
+  const [scoreOpenId, setScoreOpenId] = useState<string | null>(null);
   const router = useRouter();
 
   const askConfirm = (opts: { title: string; message: string; confirmLabel: string; onConfirm: () => void }) =>
@@ -1740,11 +1742,14 @@ export function TryOnStudio() {
             <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "24px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px", maxWidth: "960px", margin: "0 auto" }}>
                 {savedOutfits.map((outfit) => (
-                  <div key={outfit.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "12px", overflow: "hidden", background: "var(--surface)" }}>
+                  <div key={outfit.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", overflow: "hidden", background: "var(--bg-surface)", boxShadow: "var(--shadow-card)", transition: "box-shadow 0.2s" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-card-hover)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-card)"; }}
+                  >
                     <OutfitFlatlayPreview items={outfit.items} />
-                    <div style={{ padding: "12px" }}>
+                    <div style={{ padding: "14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                        <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-primary)" }}>{outfit.name}</div>
+                        <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-primary)", fontFamily: "var(--font-inter,'Inter',sans-serif)" }}>{outfit.name}</div>
                         {outfit.ai_suggested && (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", padding: "2px 8px", borderRadius: "20px", background: "linear-gradient(135deg, rgba(124,111,160,0.15), rgba(200,130,109,0.15))", border: "1px solid rgba(124,111,160,0.3)", color: "#7c6fa0", flexShrink: 0 }}>
                             <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
@@ -1752,11 +1757,19 @@ export function TryOnStudio() {
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "10px" }}>
+                      <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "12px", fontFamily: "var(--font-inter,'Inter',sans-serif)" }}>
                         {outfit.items.length} item{outfit.items.length !== 1 ? "s" : ""} · {formatDate(outfit.created_at)}
                       </div>
                       <div style={{ display: "flex", gap: "8px" }}>
                         <button className="btn btn-primary" style={{ flex: 1, fontSize: "12px" }} onClick={() => loadOutfit(outfit)}>Wear it</button>
+                        <button
+                          className="btn btn-ghost"
+                          style={{ fontSize: "12px", padding: "6px 12px", display: "flex", alignItems: "center", gap: "5px", color: scoreOpenId === outfit.id ? "var(--accent-color)" : undefined, borderColor: scoreOpenId === outfit.id ? "var(--accent-color)" : undefined }}
+                          onClick={() => setScoreOpenId(scoreOpenId === outfit.id ? null : outfit.id)}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                          Score
+                        </button>
                         <button className="btn btn-ghost" style={{ fontSize: "12px", padding: "6px 10px" }} onClick={() => askConfirm({
                           title: "Delete outfit?",
                           message: `"${outfit.name}" will be removed from your saved outfits.`,
@@ -1766,6 +1779,20 @@ export function TryOnStudio() {
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         </button>
                       </div>
+
+                      {/* Score panel */}
+                      <AnimatePresence>
+                        {scoreOpenId === outfit.id && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
+                          >
+                            <OutfitScoreBlock outfitId={outfit.id} />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
                 ))}
@@ -3129,6 +3156,115 @@ function StudioEmptyState() {
             {label}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Outfit Compatibility Score ──────────────────────────────────
+const SCORE_CIRC = 2 * Math.PI * 26;
+
+function ScoreRing({ score, color, label, delay }: { score: number; color: string; label: string; delay: number }) {
+  const countRef = React.useRef<HTMLSpanElement>(null);
+
+  React.useEffect(() => {
+    if (!countRef.current) return;
+    const ctrl = animate(0, score, {
+      duration: 1.2, ease: "easeOut", delay,
+      onUpdate: (v) => { if (countRef.current) countRef.current.textContent = Math.round(v).toString(); },
+    });
+    return () => ctrl.stop();
+  }, [score, delay]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+      <div style={{ position: "relative", width: "68px", height: "68px" }}>
+        <svg width="68" height="68" viewBox="0 0 68 68" style={{ display: "block" }}>
+          <circle cx="34" cy="34" r="26" fill="none" stroke="rgba(45,34,24,0.07)" strokeWidth="5" />
+          <motion.circle
+            cx="34" cy="34" r="26"
+            fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
+            strokeDasharray={SCORE_CIRC}
+            initial={{ strokeDashoffset: SCORE_CIRC }}
+            animate={{ strokeDashoffset: SCORE_CIRC * (1 - score / 100) }}
+            transition={{ duration: 1.2, ease: "easeOut", delay }}
+            transform="rotate(-90 34 34)"
+          />
+        </svg>
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "var(--font-playfair,'Playfair Display',serif)", fontSize: "19px", fontWeight: 600, color: "var(--text-primary)" }}>
+          <span ref={countRef}>0</span>
+        </div>
+      </div>
+      <div style={{ fontSize: "10px", fontFamily: "var(--font-inter,'Inter',sans-serif)", color: "var(--text-secondary)",
+        fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</div>
+    </div>
+  );
+}
+
+function ScoreSkeleton() {
+  return (
+    <div style={{ padding: "16px 0 4px", display: "flex", justifyContent: "space-around" }}>
+      {[0, 1, 2].map((i) => (
+        <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+          <div style={{ width: "68px", height: "68px", borderRadius: "50%",
+            background: "linear-gradient(90deg, var(--bg-primary) 25%, var(--border-subtle) 50%, var(--bg-primary) 75%)",
+            backgroundSize: "200% 100%", animation: `shimmer 1.4s ease-in-out infinite ${i * 0.15}s` }} />
+          <div style={{ width: "34px", height: "9px", borderRadius: "4px", background: "var(--bg-primary)",
+            animation: `shimmer 1.4s ease-in-out infinite ${i * 0.15}s` }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OutfitScoreBlock({ outfitId }: { outfitId: string }) {
+  const [data, setData] = React.useState<{ fit_score: number; style_score: number; color_harmony: number } | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch(`/api/outfits/${outfitId}/score`, { method: "POST", headers: authHeaders() })
+      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((d) => { setData(d); setLoading(false); })
+      .catch(() => { setError(true); setLoading(false); });
+  }, [outfitId]);
+
+  if (loading) return (
+    <div style={{ paddingTop: "12px" }}>
+      <div style={{ height: "1px", background: "var(--border-subtle)", marginBottom: "4px" }} />
+      <ScoreSkeleton />
+    </div>
+  );
+
+  if (error || !data) return (
+    <div style={{ paddingTop: "12px", textAlign: "center", fontSize: "12px",
+      color: "var(--text-tertiary)", fontFamily: "var(--font-inter,'Inter',sans-serif)" }}>
+      Score unavailable
+    </div>
+  );
+
+  const overall = Math.round((data.fit_score + data.style_score + data.color_harmony) / 3);
+  const [verdict, verdictColor] =
+    overall >= 85 ? ["Excellent", "#6B9E72"] :
+    overall >= 75 ? ["Good",      "#C8826D"] :
+    overall >= 61 ? ["Decent",    "#7C9BC0"] :
+                    ["Needs Work","#B85858"];
+
+  return (
+    <div style={{ paddingTop: "14px" }}>
+      <div style={{ height: "1px", background: "var(--border-subtle)", marginBottom: "14px" }} />
+      <div style={{ display: "flex", justifyContent: "space-around", marginBottom: "14px" }}>
+        <ScoreRing score={data.fit_score}     color="#C8826D" label="Fit"    delay={0.1}  />
+        <ScoreRing score={data.style_score}   color="#7C9BC0" label="Style"  delay={0.25} />
+        <ScoreRing score={data.color_harmony} color="#6B9E72" label="Color"  delay={0.4}  />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "8px 12px", background: "var(--bg-primary)", borderRadius: "var(--radius-sm)" }}>
+        <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontFamily: "var(--font-inter,'Inter',sans-serif)",
+          fontWeight: 500, letterSpacing: "0.04em", textTransform: "uppercase" }}>Overall</span>
+        <span style={{ fontSize: "13px", fontWeight: 700, color: verdictColor,
+          fontFamily: "var(--font-inter,'Inter',sans-serif)" }}>{overall} · {verdict}</span>
       </div>
     </div>
   );

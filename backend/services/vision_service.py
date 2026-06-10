@@ -42,15 +42,20 @@ def _call_gemini(payload: dict) -> dict | None:
 
 
 def analyze_and_validate(image_bytes: bytes) -> dict:
-    """Single Gemini call: validates clothing + extracts metadata.
+    """Validate clothing image and extract metadata.
 
+    BLIP generates the description locally; Gemini fills the remaining fields.
     Returns dict with keys:
       is_clothing (bool), reason (str),
       name, category, color, season, description
     """
+    from .ml_service import generate_description
+
+    blip_description = generate_description(image_bytes)
+
     if not GEMINI_API_KEY:
         return {"is_clothing": True, "reason": "", "name": "", "category": "top",
-                "color": "", "season": "", "description": ""}
+                "color": "", "season": "", "description": blip_description}
 
     raw = base64.b64encode(image_bytes).decode()
 
@@ -86,8 +91,12 @@ Rules:
 
     result = _call_gemini(payload)
     if result is None:
-        return {"is_clothing": True, "reason": "", "name": "", "category": "top",
-                "color": "", "season": "", "description": ""}
+        return {"is_clothing": True, "reason": "", "name": blip_description, "category": "top",
+                "color": "", "season": "", "description": blip_description}
+    if blip_description:
+        result["description"] = blip_description
+    if not result.get("name") and blip_description:
+        result["name"] = blip_description
     return result
 
 
