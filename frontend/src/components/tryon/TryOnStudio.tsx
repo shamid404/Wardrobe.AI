@@ -2679,7 +2679,7 @@ export function TryOnStudio() {
                 rows={1}
                 style={{ flex: 1, resize: "none", background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)", borderRadius: "10px", padding: "8px 12px", fontSize: "13px", color: "var(--text-primary)", fontFamily: "inherit", outline: "none" }}
               />
-              <button onClick={sendChatMessage} disabled={!chatInput.trim() || chatLoading} className="btn btn-primary" style={{ padding: "8px 14px", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button onClick={() => sendChatMessage()} disabled={!chatInput.trim() || chatLoading} className="btn btn-primary" style={{ padding: "8px 14px", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
             </div>}
