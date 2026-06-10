@@ -224,7 +224,14 @@ export function TryOnStudio() {
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [topAbove, setTopAbove] = useState(true);
   const [tryOnHistory, setTryOnHistory] = useState<TryOnHistoryItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"studio" | "plan" | "history" | "outfits" | "laundry" | "settings">("studio");
+  const [activeTab, setActiveTab] = useState<"studio" | "plan" | "history" | "outfits" | "laundry" | "settings">(() => {
+    if (typeof window !== "undefined") {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      const valid = ["studio", "plan", "history", "outfits", "laundry", "settings"];
+      if (tab && valid.includes(tab)) return tab as "studio" | "plan" | "history" | "outfits" | "laundry" | "settings";
+    }
+    return "studio";
+  });
   const [chatOpen, setChatOpen] = useState(false);
   const [editItem, setEditItem] = useState<ClothingItem | null>(null);
   const [editForm, setEditForm] = useState({ name: "", category: "top" as CategoryKey, color: "", season: "" });
@@ -263,6 +270,8 @@ export function TryOnStudio() {
   const [weekPlans, setWeekPlans] = useState<DayPlan[]>([]);
   const [planLoading, setPlanLoading] = useState(false);
   const [planningDay, setPlanningDay] = useState<string | null>(null);
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
 
   const askConfirm = (opts: { title: string; message: string; confirmLabel: string; onConfirm: () => void }) =>
@@ -274,6 +283,17 @@ export function TryOnStudio() {
       return () => clearTimeout(t);
     }
   }, []);
+
+  useEffect(() => {
+    if (!avatarMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (avatarMenuRef.current && !avatarMenuRef.current.contains(e.target as Node)) {
+        setAvatarMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [avatarMenuOpen]);
 
   const TAB_ORDER = ["studio", "plan", "history", "outfits", "laundry", "settings"];
   useEffect(() => {
@@ -509,6 +529,12 @@ export function TryOnStudio() {
     setActiveTab("studio");
     showToast("✓ Outfit loaded to studio");
   };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `/tryon?tab=${activeTab}`);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === "plan") loadPlans();
@@ -1043,26 +1069,77 @@ export function TryOnStudio() {
         </div>
         <div className="header-user">
           {weather && (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--text-secondary)", marginRight: "8px", padding: "4px 10px", background: "var(--bg-secondary)", borderRadius: "8px", border: "1px solid var(--border-subtle)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--text-secondary)", marginRight: "8px", padding: "4px 10px", background: "var(--bg-primary)", borderRadius: "8px", border: "1px solid var(--border-subtle)" }}>
               <span>{weather.temperature}{weather.unit}</span>
-              <span style={{ opacity: 0.7 }}>·</span>
+              <span style={{ opacity: 0.5 }}>·</span>
               <span>{weather.description}</span>
             </div>
           )}
-          <span>{userName}</span>
-          <div className="avatar" style={{ overflow: "hidden", padding: 0 }}>
-            {userAvatarUrl
-              ? <img src={userAvatarUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : userName[0]?.toUpperCase()}
+          {/* Avatar dropdown */}
+          <div ref={avatarMenuRef} style={{ position: "relative" }}>
+            <button
+              onClick={() => setAvatarMenuOpen((o) => !o)}
+              style={{ display: "flex", alignItems: "center", gap: "8px", background: "transparent", border: "none", cursor: "pointer", padding: "2px", borderRadius: "20px", transition: "opacity 0.2s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.8"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+            >
+              <span style={{ fontSize: "13px", fontFamily: "var(--font-inter,'Inter',sans-serif)", color: "var(--text-secondary)", fontWeight: 500 }}>{userName}</span>
+              <div className="avatar" style={{ overflow: "hidden", padding: 0 }}>
+                {userAvatarUrl
+                  ? <img src={userAvatarUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt={userName} />
+                  : userName[0]?.toUpperCase()}
+              </div>
+            </button>
+
+            {avatarMenuOpen && (
+              <div style={{
+                position: "absolute", top: "calc(100% + 8px)", right: 0,
+                background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)",
+                borderRadius: "14px", boxShadow: "var(--shadow-elevated)",
+                minWidth: "190px", zIndex: 200, overflow: "hidden",
+                animation: "popIn 0.18s cubic-bezier(0.34,1.56,0.64,1) both",
+              }}>
+                {/* User info header */}
+                <div style={{ padding: "14px 16px 12px", borderBottom: "1px solid var(--border-subtle)" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-inter,'Inter',sans-serif)" }}>{userName}</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>Free plan</div>
+                </div>
+                {/* Menu items */}
+                <div style={{ padding: "6px" }}>
+                  <button
+                    onClick={() => { setActiveTab("settings"); setAvatarMenuOpen(false); }}
+                    style={{ width: "100%", display: "flex", alignItems: "center", gap: "10px", padding: "9px 10px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", fontSize: "13px", color: "var(--text-primary)", fontFamily: "var(--font-inter,'Inter',sans-serif)", textAlign: "left", transition: "background 0.15s" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-primary)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6, flexShrink: 0 }}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                    Settings
+                  </button>
+                  <button
+                    onClick={() => { localStorage.removeItem("wardrobe_tour_done_v1"); setActiveTab("studio"); setShowTour(true); setAvatarMenuOpen(false); }}
+                    style={{ width: "100%", display: "flex", alignItems: "center", gap: "10px", padding: "9px 10px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", fontSize: "13px", color: "var(--text-primary)", fontFamily: "var(--font-inter,'Inter',sans-serif)", textAlign: "left", transition: "background 0.15s" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-primary)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6, flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                    Replay tour
+                  </button>
+                </div>
+                {/* Sign out */}
+                <div style={{ padding: "6px", borderTop: "1px solid var(--border-subtle)" }}>
+                  <button
+                    onClick={handleLogout}
+                    style={{ width: "100%", display: "flex", alignItems: "center", gap: "10px", padding: "9px 10px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", fontSize: "13px", color: "var(--error)", fontFamily: "var(--font-inter,'Inter',sans-serif)", textAlign: "left", transition: "background 0.15s" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(184,88,88,0.06)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          <button
-            onClick={handleLogout}
-            style={{ marginLeft: "12px", background: "transparent", border: "1px solid var(--border-subtle)", borderRadius: "8px", color: "var(--text-secondary)", fontSize: "11px", padding: "4px 12px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-color)"; e.currentTarget.style.color = "var(--accent-color)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
-          >
-            Sign out
-          </button>
         </div>
       </div>
 
@@ -1386,6 +1463,15 @@ export function TryOnStudio() {
           {activeTab === "settings" && (
             <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "32px" }}>
             <div style={{ maxWidth: "520px", margin: "0 auto" }}>
+              {/* Plan badge */}
+              <div style={{ marginBottom: "24px", padding: "16px 20px", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "2px" }}>Free Plan</div>
+                  <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Virtual Try-On · AI Chat · Wardrobe</div>
+                </div>
+                <span style={{ fontSize: "11px", fontWeight: 700, padding: "4px 12px", borderRadius: "20px", background: "var(--bg-primary)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)", letterSpacing: "0.04em" }}>FREE</span>
+              </div>
+
               <div style={{ marginBottom: "32px" }}>
                 <div className="panel-title" style={{ marginBottom: "16px" }}>Profile</div>
                 <div className="analysis-card">
@@ -1660,7 +1746,10 @@ export function TryOnStudio() {
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
                         <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-primary)" }}>{outfit.name}</div>
                         {outfit.ai_suggested && (
-                          <span style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.06em", padding: "2px 6px", borderRadius: "20px", background: "linear-gradient(135deg, #7c6fa0, #d4af37)", color: "#fff" }}>AI</span>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", padding: "2px 8px", borderRadius: "20px", background: "linear-gradient(135deg, rgba(124,111,160,0.15), rgba(200,130,109,0.15))", border: "1px solid rgba(124,111,160,0.3)", color: "#7c6fa0", flexShrink: 0 }}>
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+                            AI Styled
+                          </span>
                         )}
                       </div>
                       <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "10px" }}>
@@ -1693,19 +1782,68 @@ export function TryOnStudio() {
               />
               ) : (
               <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "24px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "16px", maxWidth: "960px", margin: "0 auto" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "16px", maxWidth: "960px", margin: "0 auto" }}>
                   {tryOnHistory.map((item) => (
-                    <div key={item.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "12px", overflow: "hidden", background: "var(--surface)" }}>
-                      <img src={item.image} style={{ width: "100%", display: "block", objectFit: "cover", aspectRatio: "3/4" }} />
-                      <div style={{ padding: "10px 12px" }}>
-                        <div style={{ fontSize: "13px", marginBottom: "4px", color: "var(--text-primary)", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.outfit.map((o) => o.name).join(", ")}</div>
-                        <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "8px" }}>
-                          {item.timestamp.toLocaleDateString()} · {item.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    <div
+                      key={item.id}
+                      style={{ border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", overflow: "hidden", background: "var(--bg-surface)", boxShadow: "var(--shadow-card)", transition: "box-shadow 0.2s, transform 0.2s" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-card-hover)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-card)"; e.currentTarget.style.transform = "translateY(0)"; }}
+                    >
+                      {/* Image with overlay badge */}
+                      <div style={{ position: "relative", aspectRatio: "3/4", overflow: "hidden", background: "var(--bg-primary)" }}>
+                        <img src={item.image} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.3s ease" }}
+                          onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.04)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+                        />
+                        <div style={{ position: "absolute", top: "10px", left: "10px", display: "flex", alignItems: "center", gap: "5px", background: "rgba(45,34,24,0.65)", backdropFilter: "blur(6px)", color: "#fff", fontSize: "10px", fontWeight: 600, padding: "3px 9px", borderRadius: "20px", letterSpacing: "0.04em" }}>
+                          <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--success)", flexShrink: 0 }} />
+                          AI Generated
                         </div>
-                        <button className="btn btn-ghost" onClick={() => downloadImage(item.image)} style={{ width: "100%", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                          Download
-                        </button>
+                      </div>
+                      {/* Card body */}
+                      <div style={{ padding: "12px 14px 14px" }}>
+                        {item.outfit.length > 0 && (
+                          <div style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: "4px", fontFamily: "var(--font-inter,'Inter',sans-serif)" }}>
+                            {item.outfit.map((o) => o.name).join(" · ")}
+                          </div>
+                        )}
+                        <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginBottom: "12px", fontFamily: "var(--font-inter,'Inter',sans-serif)" }}>
+                          {item.timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          <span style={{ opacity: 0.5, margin: "0 5px" }}>·</span>
+                          {item.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => downloadImage(item.image)}
+                            style={{ flex: 1, fontSize: "12px", padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Save
+                          </button>
+                          {item.outfit.length > 0 && (
+                            <button
+                              className="btn btn-ghost"
+                              onClick={() => {
+                                const newSelected: SelectedState = { top: null, outer: null, bottom: null, headwear: null, shoes: null, accessories: [] };
+                                item.outfit.forEach((o) => {
+                                  if (o.category === "accessory") newSelected.accessories.push(o);
+                                  else (newSelected as any)[o.category] = o;
+                                });
+                                setSelected(newSelected);
+                                setTryOnState(null);
+                                setTryOnResultImage(null);
+                                setActiveTab("studio");
+                                showToast("✓ Outfit loaded");
+                              }}
+                              style={{ flex: 1, fontSize: "12px", padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                              Retry
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1731,11 +1869,7 @@ export function TryOnStudio() {
               </div>
             </div>
           ) : selectedOutfit.length === 0 ? (
-            <EmptyState
-              icon={<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.86H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.86l.58-3.57a2 2 0 00-1.34-2.23z"/></svg>}
-              title="Select Items to Try"
-              sub="Choose clothing from the left to see your virtual try-on"
-            />
+            <StudioEmptyState />
           ) : (
             <div className="flatlay-stage">
               <div className={`flatlay-canvas${tryOnState === "loading" ? " scanning" : ""}`}>
@@ -1743,7 +1877,7 @@ export function TryOnStudio() {
 
                 <div className="flatlay-left">
                   {selected.headwear && (
-                    <div className="flatlay-item flatlay-headwear">
+                    <div key={selected.headwear.id} className="flatlay-item flatlay-headwear" style={{ animation: "popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both" }}>
                       {selected.headwear.removedBg || selected.headwear.photo ? (
                         <img src={selected.headwear.removedBg || selected.headwear.photo!} alt={selected.headwear.name} />
                       ) : (
@@ -1755,8 +1889,10 @@ export function TryOnStudio() {
 
                   {selected.top && (
                     <div
+                      key={selected.top.id}
                       className="flatlay-item flatlay-top"
                       style={{
+                        animation: "popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both",
                         zIndex: topAbove ? 2 : 1,
                         cursor: selected.outer ? "pointer" : "default",
                         transform: selected.outer ? (topAbove ? "scale(1) translate(0px, 0px)" : "scale(0.96) translate(6px, 10px)") : undefined,
@@ -1778,8 +1914,10 @@ export function TryOnStudio() {
 
                   {selected.outer && (
                     <div
+                      key={selected.outer.id}
                       className="flatlay-item flatlay-outer"
                       style={{
+                        animation: "popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both",
                         zIndex: topAbove ? 1 : 2,
                         cursor: selected.top ? "pointer" : "default",
                         marginTop: selected.top ? "-192px" : undefined,
@@ -1802,7 +1940,7 @@ export function TryOnStudio() {
                   )}
 
                   {selected.bottom && (
-                    <div className="flatlay-item flatlay-bottom">
+                    <div key={selected.bottom.id} className="flatlay-item flatlay-bottom" style={{ animation: "popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both" }}>
                       {selected.bottom.removedBg || selected.bottom.photo ? (
                         <img src={selected.bottom.removedBg || selected.bottom.photo!} alt={selected.bottom.name} />
                       ) : (
@@ -1813,7 +1951,7 @@ export function TryOnStudio() {
                   )}
 
                   {selected.shoes && (
-                    <div className="flatlay-item flatlay-shoes">
+                    <div key={selected.shoes.id} className="flatlay-item flatlay-shoes" style={{ animation: "popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both" }}>
                       {selected.shoes.removedBg || selected.shoes.photo ? (
                         <img src={selected.shoes.removedBg || selected.shoes.photo!} alt={selected.shoes.name} />
                       ) : (
@@ -1831,7 +1969,7 @@ export function TryOnStudio() {
                   ) : (
                     <div className="flatlay-accessories-list">
                       {selected.accessories.map((acc) => (
-                        <div key={acc.id} className="flatlay-accessory-item">
+                        <div key={acc.id} className="flatlay-accessory-item" style={{ animation: "popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both" }}>
                           {acc.removedBg || acc.photo ? (
                             <img src={acc.removedBg || acc.photo!} alt={acc.name} />
                           ) : (
@@ -2861,6 +2999,137 @@ function OutfitFlatlayPreview({ items, compact }: { items: { item_id: string; na
           {accessories.map((a) => renderItem(a, ASIZE))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── StudioEmptyState ────────────────────────────────────────────
+function StudioEmptyState() {
+  const [isMobile, setIsMobile] = React.useState(false);
+  React.useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", textAlign: "center",
+      animation: "fadeUp 0.5s ease both", padding: "32px 24px",
+    }}>
+      {/* Floating category icons */}
+      <div style={{ position: "relative", width: "200px", height: "110px", marginBottom: "32px" }}>
+        {/* Top */}
+        <div style={{
+          position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
+          width: "56px", height: "56px", borderRadius: "18px",
+          background: "rgba(200,130,109,0.10)", border: "1.5px solid rgba(200,130,109,0.22)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          animation: "float 5s ease-in-out infinite", color: "#C8826D",
+        }}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/>
+          </svg>
+        </div>
+        {/* Bottom */}
+        <div style={{
+          position: "absolute", bottom: 0, left: "8px",
+          width: "48px", height: "48px", borderRadius: "15px",
+          background: "rgba(107,158,114,0.10)", border: "1.5px solid rgba(107,158,114,0.22)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          animation: "floatAlt 6.5s ease-in-out infinite", color: "#6B9E72",
+        }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 2h12l2 7H4L6 2z"/><path d="M4 9l2 13h5l1-8 1 8h5l2-13"/>
+          </svg>
+        </div>
+        {/* Shoes */}
+        <div style={{
+          position: "absolute", bottom: "4px", right: "8px",
+          width: "48px", height: "48px", borderRadius: "15px",
+          background: "rgba(124,155,192,0.10)", border: "1.5px solid rgba(124,155,192,0.22)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          animation: "floatSlow 7s ease-in-out infinite", color: "#7C9BC0",
+        }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 18h7l2-8h4l3 5h4a1 1 0 010 3H2a1 1 0 010-3z"/><path d="M9 10l1-6h3"/>
+          </svg>
+        </div>
+        {/* Accessory */}
+        <div style={{
+          position: "absolute", top: "10px", right: "4px",
+          width: "40px", height: "40px", borderRadius: "13px",
+          background: "rgba(176,120,150,0.10)", border: "1.5px solid rgba(176,120,150,0.22)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          animation: "float 8s ease-in-out infinite 1s", color: "#B07896",
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+          </svg>
+        </div>
+      </div>
+
+      {/* Arrow hint */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: "10px",
+        padding: "8px 18px", marginBottom: "20px",
+        background: "var(--bg-surface)", borderRadius: "20px",
+        border: "1px dashed var(--border-dashed)",
+      }}>
+        <span style={{
+          display: "inline-block", fontSize: "16px",
+          animation: isMobile ? "arrowPulse 1.8s ease-in-out infinite" : "arrowPulse 1.8s ease-in-out infinite",
+          color: "var(--accent-color)",
+          transform: isMobile ? "rotate(-90deg)" : "none",
+        }}>←</span>
+        <span style={{
+          fontSize: "13px", fontFamily: "var(--font-inter,'Inter',sans-serif)",
+          color: "var(--text-secondary)", fontWeight: 500,
+        }}>{isMobile ? "Tap the wardrobe button below" : "Your wardrobe is right there"}</span>
+      </div>
+
+      <div style={{
+        fontFamily: "var(--font-playfair,'Playfair Display',serif)",
+        fontSize: "24px", fontWeight: 600,
+        color: "var(--text-primary)", letterSpacing: "-0.01em", marginBottom: "10px",
+      }}>
+        Build your outfit
+      </div>
+
+      <div style={{
+        fontSize: "13px", color: "var(--text-secondary)",
+        fontFamily: "var(--font-inter,'Inter',sans-serif)",
+        lineHeight: 1.65, maxWidth: "260px", marginBottom: "24px",
+      }}>
+        Click any item in the wardrobe to add it to the canvas, then hit <strong style={{ color: "var(--text-primary)" }}>Generate outfit</strong> to try it on.
+      </div>
+
+      {/* Step chips */}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "center" }}>
+        {[
+          { num: "1", label: "Pick a top" },
+          { num: "2", label: "Add bottoms" },
+          { num: "3", label: "Try it on" },
+        ].map(({ num, label }) => (
+          <div key={num} style={{
+            display: "flex", alignItems: "center", gap: "6px",
+            padding: "5px 12px", borderRadius: "10px",
+            background: "var(--bg-surface)", border: "1px solid var(--border-subtle)",
+            fontSize: "12px", fontFamily: "var(--font-inter,'Inter',sans-serif)",
+            color: "var(--text-secondary)",
+          }}>
+            <span style={{
+              width: "16px", height: "16px", borderRadius: "50%",
+              background: "var(--accent-color)", color: "#fff",
+              fontSize: "9px", fontWeight: 700,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}>{num}</span>
+            {label}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

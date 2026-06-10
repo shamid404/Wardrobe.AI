@@ -247,9 +247,11 @@ URL → извлечь public_id → cloudinary.uploader.destroy(public_id)
 
 | Вещь | Категория | Фото |
 |---|---|---|
-| Classic White Tee | top | `/static/defaults/default_top.png` |
-| Slim Jeans | bottom | `/static/defaults/default_bottom.png` |
-| Light Blazer | outer | `/static/defaults/default_outer.png` |
+| Grey Cap | headwear | `/static/defaults/cap.png` |
+| AITU Tee | top | `/static/defaults/shirt_aitu.png` |
+| Casual Shorts | bottom | `/static/defaults/shorts.png` |
+| Nike Sneakers | shoes | `/static/defaults/shoes_nike.png` |
+| Everyday Bag | accessory | `/static/defaults/bag.png` |
 
 ---
 
