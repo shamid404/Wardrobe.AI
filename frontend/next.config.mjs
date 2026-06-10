@@ -21,6 +21,7 @@ const nextConfig = {
       { source: "/assistant/chat", destination: `${BACKEND_URL}/assistant/chat` },
       { source: "/assistant/plan-week", destination: `${BACKEND_URL}/assistant/plan-week` },
       { source: "/assistant/plan-day", destination: `${BACKEND_URL}/assistant/plan-day` },
+      { source: "/assistant/feedback", destination: `${BACKEND_URL}/assistant/feedback` },
       { source: "/api/plans", destination: `${BACKEND_URL}/plans` },
       { source: "/api/plans/:path*", destination: `${BACKEND_URL}/plans/:path*` },
       { source: "/api/outfits", destination: `${BACKEND_URL}/outfits` },

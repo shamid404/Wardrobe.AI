@@ -99,6 +99,18 @@ class OutfitPlan(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class OutfitFeedback(Base):
+    __tablename__ = "outfit_feedback"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: f"fb_{uuid.uuid4().hex[:8]}")
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    item_ids: Mapped[str] = mapped_column(Text, nullable=False)  # JSON array of item names
+    score: Mapped[int] = mapped_column(nullable=False)  # +1 or -1
+    reason: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # combination | season | item | null
+    session_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class TryOnHistory(Base):
     __tablename__ = "tryon_history"
 

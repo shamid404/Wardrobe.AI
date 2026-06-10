@@ -14,6 +14,7 @@ from ..config import GEMINI_API_KEY
 from ..db.database import get_db
 from ..db.models import WardrobeItem, Outfit, ChatSession, ChatMessage as ChatMessageModel
 from ..services.gemini import recover_message
+from .feedback import get_feedback_context
 
 router = APIRouter(tags=["assistant"])
 
@@ -117,7 +118,11 @@ async def assistant_chat(
     if req.lat is not None and req.lon is not None:
         weather_text = f"\n\nWeather context:\n{_fetch_forecast(req.lat, req.lon)}"
 
-    system_prompt = f"""You are a personal fashion stylist assistant for a wardrobe app called Wardrobe.AI.
+    # Build feedback context
+    feedback_text = get_feedback_context(user["id"], db)
+    feedback_section = f"\n\n<user_preferences>\n{feedback_text}\n</user_preferences>" if feedback_text else ""
+
+    system_prompt = f"""You are a personal fashion stylist assistant for a wardrobe app called Wardrobe.AI.{feedback_section}
 Your role is to help users build outfits and give style advice based ONLY on items they actually own.
 
 <user_wardrobe>

@@ -13,7 +13,7 @@ from slowapi.errors import RateLimitExceeded
 from .config import ENVIRONMENT, ALLOWED_ORIGINS
 from .auth import get_current_user
 
-from .routers import wardrobe, tryon, avatar, auth_router, assistant, outfits, chat_sessions, planner
+from .routers import wardrobe, tryon, avatar, auth_router, assistant, outfits, chat_sessions, planner, feedback
 from .db.database import engine
 from .db import models
 
@@ -65,6 +65,7 @@ app.include_router(assistant.router)
 app.include_router(outfits.router)
 app.include_router(chat_sessions.router)
 app.include_router(planner.router)
+app.include_router(feedback.router)
 
 
 @app.get("/health")

@@ -2633,6 +2633,10 @@ export function TryOnStudio() {
                           Save outfit
                         </button>
                       </div>
+                      <FeedbackRow
+                        itemNames={msg.recommendedItems.map((ri) => ri.name)}
+                        sessionId={currentSessionId}
+                      />
                     </div>
                   )}
                 </div>
@@ -3157,6 +3161,95 @@ function StudioEmptyState() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ─── Chat Feedback Row ───────────────────────────────────────────
+function FeedbackRow({ itemNames, sessionId }: { itemNames: string[]; sessionId: string | null }) {
+  type Stage = "idle" | "dislike_reasons" | "done";
+  const [stage, setStage] = React.useState<Stage>("idle");
+  const [wasLiked, setWasLiked] = React.useState(false);
+
+  const submit = (score: 1 | -1, reason: string | null) => {
+    setWasLiked(score > 0);
+    setStage("done");
+    fetch("/assistant/feedback", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ item_names: itemNames, score, reason, session_id: sessionId }),
+    }).catch(() => {});
+  };
+
+  const iconBtn: React.CSSProperties = {
+    border: "1px solid var(--border-subtle)", background: "transparent",
+    borderRadius: "7px", cursor: "pointer", fontSize: "13px",
+    padding: "3px 8px", lineHeight: 1, transition: "border-color 0.15s, background 0.15s", outline: "none",
+  };
+  const pill: React.CSSProperties = {
+    border: "1px solid var(--border-subtle)", background: "transparent",
+    borderRadius: "20px", cursor: "pointer",
+    fontFamily: "var(--font-inter,'DM Sans',sans-serif)", fontSize: "11px",
+    padding: "4px 10px", color: "var(--text-secondary)",
+    transition: "border-color 0.15s, color 0.15s", outline: "none",
+  };
+
+  return (
+    <div style={{ marginTop: "6px" }}>
+      <AnimatePresence mode="wait">
+        {stage === "idle" && (
+          <motion.div key="idle"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            style={{ display: "flex", gap: "5px" }}
+          >
+            <button style={iconBtn} title="Нравится"
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#6B9E72"; e.currentTarget.style.background = "rgba(107,158,114,0.1)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "transparent"; }}
+              onClick={() => submit(1, null)}
+            >👍</button>
+            <button style={iconBtn} title="Не нравится"
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#B85858"; e.currentTarget.style.background = "rgba(184,88,88,0.1)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "transparent"; }}
+              onClick={() => setStage("dislike_reasons")}
+            >👎</button>
+          </motion.div>
+        )}
+
+        {stage === "dislike_reasons" && (
+          <motion.div key="reasons"
+            initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            style={{ display: "flex", flexWrap: "wrap", gap: "5px", alignItems: "center" }}
+          >
+            {(["Не подходит сочетание", "Не по сезону", "Не нравится вещь"] as const).map((label, i) => {
+              const reasons = ["combination", "season", "item"] as const;
+              return (
+                <button key={i} style={pill}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--text-secondary)"; e.currentTarget.style.color = "var(--text-primary)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
+                  onClick={() => submit(-1, reasons[i])}
+                >{label}</button>
+              );
+            })}
+            <button
+              style={{ ...pill, borderColor: "transparent", color: "var(--text-tertiary)", fontSize: "10px" }}
+              onClick={() => submit(-1, null)}
+            >Пропустить</button>
+          </motion.div>
+        )}
+
+        {stage === "done" && (
+          <motion.div key="done"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            style={{ fontSize: "11px", fontFamily: "var(--font-inter,'DM Sans',sans-serif)",
+              color: wasLiked ? "#6B9E72" : "var(--text-tertiary)" }}
+          >
+            {wasLiked ? "Учтено ✓" : "Учтено"}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
