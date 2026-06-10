@@ -1,10 +1,13 @@
 """Local ML models: BLIP (description generation) + Compatibility MLP (outfit scoring)."""
 import io
+import os
 from pathlib import Path
 
 import torch
 import torch.nn as nn
 from PIL import Image
+
+ML_DISABLED = os.getenv("DISABLE_ML_MODELS", "").lower() in ("true", "1", "yes")
 
 BASE = Path(__file__).parent.parent / "ml_models"
 BLIP_PATH = BASE / "blip-fashion"
@@ -30,6 +33,8 @@ def _load_blip():
 
 def generate_description(image_bytes: bytes) -> str:
     """Generate clothing description from image bytes. Returns '' on failure."""
+    if ML_DISABLED:
+        return ""
     try:
         _load_blip()
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -85,7 +90,7 @@ def score_outfit(item_descriptions: list) -> dict:
     Returns {'fit_score', 'style_score', 'color_harmony'} as 0-100 ints.
     Falls back to neutral 75s on any error.
     """
-    if len(item_descriptions) < 2:
+    if ML_DISABLED or len(item_descriptions) < 2:
         return {"fit_score": 75, "style_score": 75, "color_harmony": 75}
     try:
         _load_compatibility()
