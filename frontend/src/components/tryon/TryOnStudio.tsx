@@ -3021,7 +3021,6 @@ function OutfitFlatlayPreview({ items, compact }: { items: { item_id: string; na
   const renderItem = (oi: { item_id: string; name: string; image_url: string | null }, size: number) => (
     <div key={oi.item_id} title={oi.name} style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", filter: "drop-shadow(0 5px 12px rgba(60,40,20,0.14))" }}>
       {oi.image_url ? (
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={oi.image_url} alt={oi.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
       ) : (
         <div style={{ opacity: 0.2, display: "flex" }}><svg width={size * 0.4} height={size * 0.4} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
