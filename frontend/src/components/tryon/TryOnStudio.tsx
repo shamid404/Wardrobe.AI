@@ -318,14 +318,14 @@ export function TryOnStudio() {
     }
   }, [chatOpen]);
 
-  const sendChatMessage = async () => {
-    const text = chatInput.trim();
+  const sendChatMessage = async (overrideText?: string) => {
+    const text = overrideText ?? chatInput.trim();
     if (!text || chatLoading) return;
 
     const userMsg = { role: "user" as const, content: text };
     const updatedHistory = [...chatMessages, userMsg];
     setChatMessages(updatedHistory);
-    setChatInput("");
+    if (!overrideText) setChatInput("");
     setChatLoading(true);
 
     try {
@@ -402,10 +402,19 @@ export function TryOnStudio() {
   };
 
   const openSaveOutfitModal = (aiSuggested = false, itemIds: string[] | null = null) => {
+    setMobileWardrobeOpen(false);
+    setMobilePhotoOpen(false);
     setSaveOutfitName("");
     setSaveOutfitAi(aiSuggested);
     setSaveOutfitItemIds(itemIds);
     setSaveOutfitModal(true);
+  };
+
+  const askInChat = (message: string) => {
+    setChatOpen(true);
+    setMobileWardrobeOpen(false);
+    setMobilePhotoOpen(false);
+    sendChatMessage(message);
   };
 
   const saveOutfit = async () => {
@@ -790,6 +799,8 @@ export function TryOnStudio() {
   const openUploadModal = (category: ClothingItem["category"]) => {
     setUploadModalCategory(category);
     setItemForm((p) => ({ ...p, category }));
+    setMobileWardrobeOpen(false);
+    setMobilePhotoOpen(false);
     setUploadModal(true);
   };
 
@@ -1789,7 +1800,11 @@ export function TryOnStudio() {
                             exit={{ opacity: 0, y: -8 }}
                             transition={{ duration: 0.2, ease: "easeOut" }}
                           >
-                            <OutfitScoreBlock outfitId={outfit.id} />
+                            <OutfitScoreBlock
+                              outfitId={outfit.id}
+                              outfitName={outfit.name}
+                              onAskInChat={askInChat}
+                            />
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -2694,7 +2709,7 @@ export function TryOnStudio() {
         {/* Toggle button */}
         <button
           id="tour-chat"
-          onClick={() => setChatOpen((o) => !o)}
+          onClick={() => setChatOpen((o) => { if (!o) { setMobileWardrobeOpen(false); setMobilePhotoOpen(false); } return !o; })}
           style={{ width: "52px", height: "52px", borderRadius: "50%", background: "var(--accent-color)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)", transition: "transform 0.2s, background 0.2s", pointerEvents: "auto" }}
           onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.1)"; e.currentTarget.style.background = "var(--accent-hover, #B36F5A)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.background = "var(--accent-color)"; }}
@@ -3166,6 +3181,12 @@ function StudioEmptyState() {
 }
 
 // ─── Chat Feedback Row ───────────────────────────────────────────
+const DISLIKE_REASONS = [
+  { label: "Doesn't match",  reason: "combination" as const },
+  { label: "Wrong season",   reason: "season"      as const },
+  { label: "Don't like it",  reason: "item"        as const },
+] as const;
+
 function FeedbackRow({ itemNames, sessionId }: { itemNames: string[]; sessionId: string | null }) {
   type Stage = "idle" | "dislike_reasons" | "done";
   const [stage, setStage] = React.useState<Stage>("idle");
@@ -3181,38 +3202,49 @@ function FeedbackRow({ itemNames, sessionId }: { itemNames: string[]; sessionId:
     }).catch(() => {});
   };
 
-  const iconBtn: React.CSSProperties = {
+  const iconBtnBase: React.CSSProperties = {
+    width: "30px", height: "30px", borderRadius: "8px",
     border: "1px solid var(--border-subtle)", background: "transparent",
-    borderRadius: "7px", cursor: "pointer", fontSize: "13px",
-    padding: "3px 8px", lineHeight: 1, transition: "border-color 0.15s, background 0.15s", outline: "none",
-  };
-  const pill: React.CSSProperties = {
-    border: "1px solid var(--border-subtle)", background: "transparent",
-    borderRadius: "20px", cursor: "pointer",
-    fontFamily: "var(--font-inter,'DM Sans',sans-serif)", fontSize: "11px",
-    padding: "4px 10px", color: "var(--text-secondary)",
-    transition: "border-color 0.15s, color 0.15s", outline: "none",
+    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+    transition: "border-color 0.15s, background 0.15s, color 0.15s",
+    color: "var(--text-secondary)", flexShrink: 0, outline: "none",
   };
 
   return (
-    <div style={{ marginTop: "6px" }}>
+    <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px solid var(--border-subtle)" }}>
       <AnimatePresence mode="wait">
+
         {stage === "idle" && (
           <motion.div key="idle"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.15 }}
-            style={{ display: "flex", gap: "5px" }}
+            style={{ display: "flex", alignItems: "center", gap: "6px" }}
           >
-            <button style={iconBtn} title="Нравится"
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#6B9E72"; e.currentTarget.style.background = "rgba(107,158,114,0.1)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "transparent"; }}
+            <span style={{ fontSize: "10px", color: "var(--text-tertiary)", fontFamily: "var(--font-inter,'DM Sans',sans-serif)", letterSpacing: "0.04em", marginRight: "2px" }}>
+              Helpful?
+            </span>
+            <button
+              style={iconBtnBase} title="Нравится"
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#6B9E72"; e.currentTarget.style.background = "rgba(107,158,114,0.12)"; e.currentTarget.style.color = "#6B9E72"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-secondary)"; }}
               onClick={() => submit(1, null)}
-            >👍</button>
-            <button style={iconBtn} title="Не нравится"
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#B85858"; e.currentTarget.style.background = "rgba(184,88,88,0.1)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "transparent"; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+                <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+              </svg>
+            </button>
+            <button
+              style={iconBtnBase} title="Не нравится"
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#B85858"; e.currentTarget.style.background = "rgba(184,88,88,0.12)"; e.currentTarget.style.color = "#B85858"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-secondary)"; }}
               onClick={() => setStage("dislike_reasons")}
-            >👎</button>
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/>
+                <path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+              </svg>
+            </button>
           </motion.div>
         )}
 
@@ -3220,35 +3252,56 @@ function FeedbackRow({ itemNames, sessionId }: { itemNames: string[]; sessionId:
           <motion.div key="reasons"
             initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            style={{ display: "flex", flexWrap: "wrap", gap: "5px", alignItems: "center" }}
+            style={{ display: "flex", flexDirection: "column", gap: "7px" }}
           >
-            {(["Не подходит сочетание", "Не по сезону", "Не нравится вещь"] as const).map((label, i) => {
-              const reasons = ["combination", "season", "item"] as const;
-              return (
-                <button key={i} style={pill}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--text-secondary)"; e.currentTarget.style.color = "var(--text-primary)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
-                  onClick={() => submit(-1, reasons[i])}
+            <span style={{ fontSize: "10px", color: "var(--text-tertiary)", fontFamily: "var(--font-inter,'DM Sans',sans-serif)", letterSpacing: "0.04em" }}>
+              What's wrong with this suggestion?
+            </span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
+              {DISLIKE_REASONS.map(({ label, reason }) => (
+                <button key={reason}
+                  style={{
+                    border: "1px solid var(--border-subtle)", background: "transparent",
+                    borderRadius: "20px", cursor: "pointer",
+                    fontFamily: "var(--font-inter,'DM Sans',sans-serif)", fontSize: "11px",
+                    padding: "4px 12px", color: "var(--text-secondary)", outline: "none",
+                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#B85858"; e.currentTarget.style.color = "#B85858"; e.currentTarget.style.background = "rgba(184,88,88,0.07)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.color = "var(--text-secondary)"; e.currentTarget.style.background = "transparent"; }}
+                  onClick={() => submit(-1, reason)}
                 >{label}</button>
-              );
-            })}
+              ))}
+            </div>
             <button
-              style={{ ...pill, borderColor: "transparent", color: "var(--text-tertiary)", fontSize: "10px" }}
+              style={{ alignSelf: "flex-start", border: "none", background: "transparent", cursor: "pointer",
+                fontFamily: "var(--font-inter,'DM Sans',sans-serif)", fontSize: "10px",
+                color: "var(--text-tertiary)", padding: "0", outline: "none",
+                transition: "color 0.15s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
               onClick={() => submit(-1, null)}
-            >Пропустить</button>
+            >Skip →</button>
           </motion.div>
         )}
 
         {stage === "done" && (
           <motion.div key="done"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            initial={{ opacity: 0, y: -3 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
-            style={{ fontSize: "11px", fontFamily: "var(--font-inter,'DM Sans',sans-serif)",
+            style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px",
+              fontFamily: "var(--font-inter,'DM Sans',sans-serif)",
               color: wasLiked ? "#6B9E72" : "var(--text-tertiary)" }}
           >
-            {wasLiked ? "Учтено ✓" : "Учтено"}
+            {wasLiked && (
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            )}
+            Noted
           </motion.div>
         )}
+
       </AnimatePresence>
     </div>
   );
@@ -3311,7 +3364,7 @@ function ScoreSkeleton() {
   );
 }
 
-function OutfitScoreBlock({ outfitId }: { outfitId: string }) {
+function OutfitScoreBlock({ outfitId, outfitName, onAskInChat }: { outfitId: string; outfitName?: string; onAskInChat?: (msg: string) => void }) {
   const [data, setData] = React.useState<{ fit_score: number; style_score: number; color_harmony: number } | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
@@ -3359,6 +3412,23 @@ function OutfitScoreBlock({ outfitId }: { outfitId: string }) {
         <span style={{ fontSize: "13px", fontWeight: 700, color: verdictColor,
           fontFamily: "var(--font-inter,'Inter',sans-serif)" }}>{overall} · {verdict}</span>
       </div>
+      {onAskInChat && (
+        <button
+          onClick={() => onAskInChat(
+            `Объясни почему образ "${outfitName ?? outfitId}" получил такие оценки: Fit ${data.fit_score}, Style ${data.style_score}, Color Harmony ${data.color_harmony}. Что конкретно влияет на каждый балл и как можно улучшить образ?`
+          )}
+          style={{ marginTop: "10px", width: "100%", background: "none", border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--radius-sm)", padding: "7px 12px", cursor: "pointer",
+            fontFamily: "var(--font-inter,'DM Sans',sans-serif)", fontSize: "11px",
+            color: "var(--text-secondary)", display: "flex", alignItems: "center", justifyContent: "center",
+            gap: "5px", transition: "border-color 0.15s, color 0.15s" }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-color)"; e.currentTarget.style.color = "var(--accent-color)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          Ask AI why
+        </button>
+      )}
     </div>
   );
 }
