@@ -76,7 +76,7 @@ async def generate_tryon(request: Request, body: VirtualTryOnRequest, user=Depen
             raise HTTPException(
                 status_code=422,
                 detail={
-                    "message": "Изображение не прошло проверку контента AI-модели. Попробуйте другое фото одежды.",
+                    "message": "Image failed the AI content check. Please try a different clothing photo.",
                     "code": "CONTENT_FLAGGED",
                 },
             )

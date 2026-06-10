@@ -31,7 +31,7 @@ SMTP_FROM      = os.getenv("SMTP_FROM", "onboarding@resend.dev")
 # JWT
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8  # 8 часов
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8
 
 _INSECURE_DEFAULT = "change-me-in-production"
 if SECRET_KEY == _INSECURE_DEFAULT:

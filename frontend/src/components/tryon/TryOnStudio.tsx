@@ -2592,10 +2592,11 @@ export function TryOnStudio() {
                     borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
                     background: msg.role === "user" ? "var(--accent-color)" : "var(--bg-secondary)",
                     color: msg.role === "user" ? "#fff" : "var(--text-primary)",
-                    fontSize: "13px", lineHeight: "1.6", whiteSpace: "pre-wrap",
+                    fontSize: "13px", lineHeight: "1.6",
+                    whiteSpace: msg.role === "user" ? "pre-wrap" : undefined,
                     border: msg.role === "assistant" ? "1px solid var(--border-subtle)" : "none",
                   }}>
-                    {msg.content}
+                    {msg.role === "assistant" ? renderMarkdown(msg.content) : msg.content}
                   </div>
 
                   {/* Recommended item cards */}
@@ -3224,7 +3225,7 @@ function FeedbackRow({ itemNames, sessionId }: { itemNames: string[]; sessionId:
               Helpful?
             </span>
             <button
-              style={iconBtnBase} title="Нравится"
+              style={iconBtnBase} title="Like"
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#6B9E72"; e.currentTarget.style.background = "rgba(107,158,114,0.12)"; e.currentTarget.style.color = "#6B9E72"; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-secondary)"; }}
               onClick={() => submit(1, null)}
@@ -3235,7 +3236,7 @@ function FeedbackRow({ itemNames, sessionId }: { itemNames: string[]; sessionId:
               </svg>
             </button>
             <button
-              style={iconBtnBase} title="Не нравится"
+              style={iconBtnBase} title="Dislike"
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#B85858"; e.currentTarget.style.background = "rgba(184,88,88,0.12)"; e.currentTarget.style.color = "#B85858"; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-secondary)"; }}
               onClick={() => setStage("dislike_reasons")}
@@ -3364,6 +3365,49 @@ function ScoreSkeleton() {
   );
 }
 
+function renderMarkdown(text: string): React.ReactNode {
+  const parseBold = (line: string): React.ReactNode => {
+    const parts = line.split(/(\*\*[^*]+\*\*)/);
+    if (parts.length === 1) return line;
+    return parts.map((part, i) =>
+      part.startsWith("**") && part.endsWith("**")
+        ? <strong key={i} style={{ fontWeight: 600 }}>{part.slice(2, -2)}</strong>
+        : part
+    );
+  };
+
+  const lines = text.split("\n");
+  const nodes: React.ReactNode[] = [];
+  let listItems: React.ReactNode[] = [];
+
+  const flushList = (key: string) => {
+    if (listItems.length === 0) return;
+    nodes.push(
+      <ul key={key} style={{ margin: "4px 0 4px 4px", paddingLeft: "14px", listStyleType: "disc" }}>
+        {listItems}
+      </ul>
+    );
+    listItems = [];
+  };
+
+  lines.forEach((line, i) => {
+    const bulletMatch = line.match(/^(\*|-|•)\s+(.*)/);
+    if (bulletMatch) {
+      listItems.push(<li key={i} style={{ marginBottom: "2px" }}>{parseBold(bulletMatch[2])}</li>);
+    } else {
+      flushList(`ul-${i}`);
+      if (line.trim() === "") {
+        nodes.push(<div key={i} style={{ height: "6px" }} />);
+      } else {
+        nodes.push(<div key={i}>{parseBold(line)}</div>);
+      }
+    }
+  });
+  flushList("ul-end");
+
+  return <>{nodes}</>;
+}
+
 function OutfitScoreBlock({ outfitId, outfitName, onAskInChat }: { outfitId: string; outfitName?: string; onAskInChat?: (msg: string) => void }) {
   const [data, setData] = React.useState<{ fit_score: number; style_score: number; color_harmony: number } | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -3415,7 +3459,7 @@ function OutfitScoreBlock({ outfitId, outfitName, onAskInChat }: { outfitId: str
       {onAskInChat && (
         <button
           onClick={() => onAskInChat(
-            `Объясни почему образ "${outfitName ?? outfitId}" получил такие оценки: Fit ${data.fit_score}, Style ${data.style_score}, Color Harmony ${data.color_harmony}. Что конкретно влияет на каждый балл и как можно улучшить образ?`
+            `Why did the outfit "${outfitName ?? outfitId}" score Fit ${data.fit_score}, Style ${data.style_score}, Color Harmony ${data.color_harmony}? Give a short explanation for each score and one tip to improve it.`
           )}
           style={{ marginTop: "10px", width: "100%", background: "none", border: "1px solid var(--border-subtle)",
             borderRadius: "var(--radius-sm)", padding: "7px 12px", cursor: "pointer",

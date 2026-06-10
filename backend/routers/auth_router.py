@@ -28,9 +28,6 @@ from ..services.email_service import send_verification_email
 _pending: dict = {}
 _pending_lock = threading.Lock()
 
-# ── Дефолтные вещи для нового пользователя ────────────────────────────────────
-# Положи свои фото сюда: backend/static/defaults/
-# URL будет доступен как http://localhost:8000/static/defaults/<filename>
 _DEFAULT_ITEMS = [
     {"name": "Grey Cap",      "category": "headwear",  "brand": None,   "size": "M",  "image_file": "cap.png"},
     {"name": "AITU Tee",      "category": "top",       "brand": "AITU", "size": "M",  "image_file": "shirt_aitu.png"},
@@ -47,7 +44,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def send_code(request: Request, data: SendVerificationCode, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Email уже зарегистрирован.")
+        raise HTTPException(status_code=400, detail="Email already registered.")
 
     code = "".join(str(random.randint(0, 9)) for _ in range(6))
     expires_at = time.time() + 600  # 10 minutes
@@ -65,9 +62,9 @@ def send_code(request: Request, data: SendVerificationCode, db: Session = Depend
     except Exception as exc:
         with _pending_lock:
             _pending.pop(data.email, None)
-        raise HTTPException(status_code=500, detail=f"Не удалось отправить письмо: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {exc}")
 
-    return {"message": "Код отправлен на ваш email"}
+    return {"message": "Verification code sent to your email"}
 
 
 @router.post("/verify-email", response_model=Token, status_code=status.HTTP_201_CREATED)
@@ -77,22 +74,22 @@ def verify_email(request: Request, data: VerifyEmailCode, db: Session = Depends(
         pending = _pending.get(data.email)
 
     if not pending:
-        raise HTTPException(status_code=400, detail="Код не найден. Запросите новый.")
+        raise HTTPException(status_code=400, detail="Code not found. Please request a new one.")
 
     if time.time() > pending["expires_at"]:
         with _pending_lock:
             _pending.pop(data.email, None)
-        raise HTTPException(status_code=400, detail="Код истёк. Запросите новый.")
+        raise HTTPException(status_code=400, detail="Code expired. Please request a new one.")
 
     if pending["code"] != data.code:
-        raise HTTPException(status_code=400, detail="Неверный код.")
+        raise HTTPException(status_code=400, detail="Invalid code.")
 
     with _pending_lock:
         _pending.pop(data.email, None)
 
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Email уже зарегистрирован.")
+        raise HTTPException(status_code=400, detail="Email already registered.")
 
     user = User(
         id=f"user_{uuid.uuid4().hex[:10]}",
@@ -125,7 +122,7 @@ def verify_email(request: Request, data: VerifyEmailCode, db: Session = Depends(
 def register(request: Request, data: UserRegister, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Email уже зарегистрирован.")
+        raise HTTPException(status_code=400, detail="Email already registered.")
 
     user = User(
         id=f"user_{uuid.uuid4().hex[:10]}",
@@ -158,7 +155,7 @@ def register(request: Request, data: UserRegister, db: Session = Depends(get_db)
 def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
     if not user or not verify_password(data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Неверный email или пароль.")
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
 
     token = create_access_token(user.id)
     return Token(access_token=token, user=UserOut(id=user.id, name=user.name, email=user.email, avatar_url=user.avatar_url))

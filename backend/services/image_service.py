@@ -20,7 +20,7 @@ def upload_to_cloudinary(image_base64: str) -> str:
     """Upload image to Cloudinary for temporary hosting (needed for Replicate)."""
     try:
         if not CLOUDINARY_CLOUD_NAME:
-            raise HTTPException(status_code=400, detail="CLOUDINARY_CLOUD_NAME не задан.")
+            raise HTTPException(status_code=400, detail="CLOUDINARY_CLOUD_NAME is not set.")
 
         # If it's a real HTTP(S) URL — Cloudinary can fetch it directly
         if image_base64.startswith(("http://", "https://")):
@@ -46,7 +46,7 @@ def upload_to_cloudinary(image_base64: str) -> str:
         raise
     except Exception as e:
         print(f"[image_service] upload error: {type(e).__name__}: {e}")
-        raise HTTPException(status_code=502, detail=f"Не удалось загрузить изображение: {e}") from e
+        raise HTTPException(status_code=502, detail=f"Failed to upload image: {e}") from e
 
 
 def url_to_data_url(image_url: str) -> str:

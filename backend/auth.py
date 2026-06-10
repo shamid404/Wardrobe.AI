@@ -30,14 +30,14 @@ def get_current_user(
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Не авторизован. Передайте Bearer-токен.",
+            detail="Not authorized. Provide a Bearer token.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     token = credentials.credentials
     if token in _revoked_tokens:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Токен отозван. Войдите заново.",
+            detail="Token revoked. Please sign in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     try:
@@ -48,12 +48,12 @@ def get_current_user(
     except (JWTError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Токен недействителен или истёк.",
+            detail="Token invalid or expired.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Пользователь не найден.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found.")
 
     return {"id": user.id, "name": user.name, "email": user.email}

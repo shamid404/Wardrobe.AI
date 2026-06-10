@@ -51,7 +51,7 @@ async def generate_virtual_tryon(
         input_images = input_images[:2]
 
         if replicate_client is None:
-            raise RuntimeError("REPLICATE_API_TOKEN не задан. Укажите переменную окружения REPLICATE_API_TOKEN.")
+            raise RuntimeError("REPLICATE_API_TOKEN is not set.")
 
         output = replicate_client.run(
             "black-forest-labs/flux-2-pro",
