@@ -261,7 +261,11 @@ export function TryOnStudio() {
   const [pwdStep, setPwdStep] = useState<"idle" | "sent" | "done">("idle");
   const [pwdCode, setPwdCode] = useState("");
   const [pwdNew, setPwdNew] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
   const [pwdLoading, setPwdLoading] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
+  const [showPwdConfirm, setShowPwdConfirm] = useState(false);
+  const [pwdError, setPwdError] = useState("");
   const [wishlistEditItem, setWishlistEditItem] = useState<WishlistItem | null>(null);
   const [weather, setWeather] = useState<{ temperature: number; description: string; unit: string } | null>(null);
   const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
@@ -1796,33 +1800,83 @@ export function TryOnStudio() {
                         className="form-input"
                         placeholder={tl("settings_enter_code")}
                         value={pwdCode}
-                        onChange={(e) => setPwdCode(e.target.value)}
+                        onChange={(e) => { setPwdCode(e.target.value); setPwdError(""); }}
                         maxLength={6}
+                        style={{ letterSpacing: "0.15em", fontSize: "16px" }}
                       />
-                      <input
-                        className="form-input"
-                        type="password"
-                        placeholder={tl("settings_new_password")}
-                        value={pwdNew}
-                        onChange={(e) => setPwdNew(e.target.value)}
-                      />
+                      {/* New password with eye toggle */}
+                      <div style={{ position: "relative" }}>
+                        <input
+                          className="form-input"
+                          type={showPwd ? "text" : "password"}
+                          placeholder={tl("settings_new_password")}
+                          value={pwdNew}
+                          onChange={(e) => { setPwdNew(e.target.value); setPwdError(""); }}
+                          style={{ width: "100%", boxSizing: "border-box", paddingRight: "40px" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPwd(v => !v)}
+                          style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: "2px", display: "flex" }}
+                        >
+                          {showPwd
+                            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                          }
+                        </button>
+                      </div>
+                      {/* Confirm password with eye toggle */}
+                      <div style={{ position: "relative" }}>
+                        <input
+                          className="form-input"
+                          type={showPwdConfirm ? "text" : "password"}
+                          placeholder="Confirm new password"
+                          value={pwdConfirm}
+                          onChange={(e) => { setPwdConfirm(e.target.value); setPwdError(""); }}
+                          style={{ width: "100%", boxSizing: "border-box", paddingRight: "40px", borderColor: pwdError && pwdConfirm ? "var(--error)" : undefined }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPwdConfirm(v => !v)}
+                          style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: "2px", display: "flex" }}
+                        >
+                          {showPwdConfirm
+                            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                          }
+                        </button>
+                      </div>
+                      {/* Inline error */}
+                      {pwdError && (
+                        <div style={{ fontSize: "12px", color: "var(--error)", display: "flex", alignItems: "center", gap: "5px" }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                          {pwdError}
+                        </div>
+                      )}
                       <button
                         className="btn btn-primary"
-                        disabled={pwdLoading || pwdCode.length < 6 || pwdNew.length < 6}
+                        disabled={pwdLoading || pwdCode.length < 6 || pwdNew.length < 6 || pwdConfirm.length < 6}
                         onClick={async () => {
+                          if (pwdNew !== pwdConfirm) { setPwdError("Passwords do not match"); return; }
+                          if (pwdNew.length < 6) { setPwdError("Password must be at least 6 characters"); return; }
                           setPwdLoading(true);
+                          setPwdError("");
                           try {
                             const res = await fetch("/api/auth/change-password", {
                               method: "POST",
                               headers: { ...authHeaders(), "Content-Type": "application/json" },
                               body: JSON.stringify({ code: pwdCode, new_password: pwdNew }),
                             });
-                            if (!res.ok) throw new Error((await res.json()).detail ?? "Error");
+                            if (!res.ok) {
+                              const detail = (await res.json()).detail ?? "Error";
+                              setPwdError(detail);
+                              return;
+                            }
                             setPwdStep("done");
-                            setPwdCode(""); setPwdNew("");
+                            setPwdCode(""); setPwdNew(""); setPwdConfirm("");
                             showToast("✓ Password changed");
-                          } catch (err: unknown) {
-                            showToast(`❌ ${err instanceof Error ? err.message : "Failed"}`);
+                          } catch {
+                            setPwdError("Network error, try again");
                           } finally { setPwdLoading(false); }
                         }}
                         style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
