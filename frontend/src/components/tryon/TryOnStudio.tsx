@@ -1578,48 +1578,52 @@ export function TryOnStudio() {
           )}
 
           {activeTab === "settings" && (() => {
-            const NAV: { id: typeof settingsSection; label: string; icon: React.ReactNode; danger?: boolean }[] = [
-              { id: "profile", label: "Profile", icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
-              { id: "preferences", label: "Preferences", icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> },
-              { id: "ai", label: "AI & Try-On", icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg> },
-              { id: "security", label: "Security", icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> },
-              { id: "data", label: "Data", icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> },
-              { id: "account", label: "Account", icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>, danger: true },
+            const SNAV: { id: typeof settingsSection; label: string; icon: React.ReactNode; danger?: boolean }[] = [
+              { id: "profile",     label: "Profile",      icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+              { id: "preferences", label: "Preferences",  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> },
+              { id: "ai",          label: "AI & Try-On",  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg> },
+              { id: "security",    label: "Security",     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> },
+              { id: "data",        label: "Data",         icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> },
+              { id: "account",     label: "Account",      icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>, danger: true },
             ];
             return (
-            <div style={{ position: "absolute", inset: 0, display: "flex" }}>
-              {/* LEFT NAV */}
-              <div style={{ width: "200px", flexShrink: 0, borderRight: "1px solid var(--border-subtle)", background: "var(--bg-surface)", display: "flex", flexDirection: "column", padding: "20px 10px", gap: "2px", overflowY: "auto" }}>
-                {/* Plan badge */}
-                <div style={{ padding: "12px 10px 16px", marginBottom: "8px", borderBottom: "1px solid var(--border-subtle)" }}>
-                  <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-primary)", marginBottom: "2px" }}>Free Plan</div>
-                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", lineHeight: 1.4 }}>Try-On · AI Chat · Wardrobe</div>
-                  <span style={{ display: "inline-block", marginTop: "8px", fontSize: "10px", fontWeight: 700, padding: "3px 10px", borderRadius: "20px", background: "var(--bg-primary)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)", letterSpacing: "0.05em" }}>FREE</span>
-                </div>
-                {NAV.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setSettingsSection(item.id)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "10px",
-                      padding: "9px 12px", borderRadius: "var(--radius-sm)",
-                      border: "none", cursor: "pointer", fontFamily: "inherit",
-                      fontSize: "13px", fontWeight: settingsSection === item.id ? 600 : 500,
-                      textAlign: "left", transition: "all 0.15s",
-                      background: settingsSection === item.id ? (item.danger ? "rgba(184,88,88,0.08)" : "var(--bg-primary)") : "transparent",
-                      color: item.danger ? "#b85858" : settingsSection === item.id ? "var(--text-primary)" : "var(--text-secondary)",
-                    }}
-                  >
-                    <span style={{ opacity: settingsSection === item.id ? 1 : 0.6, flexShrink: 0 }}>{item.icon}</span>
-                    {item.label}
-                    {settingsSection === item.id && <span style={{ marginLeft: "auto", width: "4px", height: "4px", borderRadius: "50%", background: item.danger ? "#b85858" : "var(--accent-color)", flexShrink: 0 }} />}
-                  </button>
-                ))}
-              </div>
+            <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "24px 16px" }}>
+              <div style={{ maxWidth: "600px", margin: "0 auto" }}>
 
-              {/* RIGHT CONTENT */}
-              <div style={{ flex: 1, overflowY: "auto", padding: "32px 40px" }}>
-              <div style={{ maxWidth: "480px" }}>
+                {/* Plan badge */}
+                <div style={{ marginBottom: "20px", padding: "14px 18px", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "2px" }}>Free Plan</div>
+                    <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Virtual Try-On · AI Chat · Wardrobe</div>
+                  </div>
+                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "4px 12px", borderRadius: "20px", background: "var(--bg-primary)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)", letterSpacing: "0.05em" }}>FREE</span>
+                </div>
+
+                {/* Tab pills */}
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "20px" }}>
+                  {SNAV.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setSettingsSection(item.id)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "6px",
+                        padding: "7px 14px", borderRadius: "20px",
+                        border: `1.5px solid ${settingsSection === item.id ? (item.danger ? "#b85858" : "var(--accent-color)") : "var(--border-subtle)"}`,
+                        background: settingsSection === item.id ? (item.danger ? "rgba(184,88,88,0.08)" : "rgba(200,130,109,0.1)") : "transparent",
+                        color: item.danger ? "#b85858" : settingsSection === item.id ? "var(--accent-color)" : "var(--text-secondary)",
+                        fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Content card */}
+                <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
+                <div style={{ maxWidth: "480px" }}>
 
               {settingsSection === "profile" && <div style={{ marginBottom: "32px" }}>
                 <div className="panel-title" style={{ marginBottom: "16px" }}>Profile</div>
@@ -1994,6 +1998,7 @@ export function TryOnStudio() {
                 </div>
               </div>}
 
+              </div>
               </div>
               </div>
             </div>
