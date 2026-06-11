@@ -81,17 +81,30 @@ def update_wishlist_item(item_id: str, body: WishlistItemCreate, user=Depends(ge
 
 
 class ImageUploadBody(BaseModel):
-    image_base64: str
+    image_base64: str | None = None
+    image_url: str | None = None
+
+
+def _resolve_base64(body: ImageUploadBody) -> str:
+    if body.image_base64:
+        return body.image_base64
+    if body.image_url:
+        import base64 as _b64
+        import httpx
+        r = httpx.get(body.image_url, timeout=15, follow_redirects=True)
+        r.raise_for_status()
+        return _b64.b64encode(r.content).decode()
+    raise HTTPException(status_code=400, detail="No image provided")
 
 
 @router.post("/upload-image")
 def upload_wishlist_image(body: ImageUploadBody, user=Depends(get_current_user)):
-    url = upload_file(body.image_base64)
+    url = upload_file(_resolve_base64(body))
     return {"url": url}
 
 
 @router.post("/analyze-clothing")
 def analyze_wishlist_clothing(body: ImageUploadBody, user=Depends(get_current_user)):
     from ..services.vision_service import analyze_clothing
-    result = analyze_clothing(body.image_base64)
+    result = analyze_clothing(_resolve_base64(body))
     return result
