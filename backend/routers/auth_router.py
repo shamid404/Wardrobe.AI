@@ -28,6 +28,10 @@ from ..services.email_service import send_verification_email
 _pending: dict = {}
 _pending_lock = threading.Lock()
 
+# In-memory store for password reset codes {user_id -> {code, expires_at}}
+_pwd_reset: dict = {}
+_pwd_reset_lock = threading.Lock()
+
 _DEFAULT_ITEMS = [
     {"name": "Grey Cap",      "category": "headwear",  "brand": None,   "size": "M",  "image_file": "cap.png"},
     {"name": "AITU Tee",      "category": "top",       "brand": "AITU", "size": "M",  "image_file": "shirt_aitu.png"},
@@ -246,6 +250,49 @@ def update_me(data: UserUpdate, user=Depends(get_current_user), db: Session = De
     db.commit()
     db.refresh(db_user)
     return UserOut(id=db_user.id, name=db_user.name, email=db_user.email, avatar_url=db_user.avatar_url, tryon_body_photo_url=db_user.tryon_body_photo_url)
+
+
+@router.post("/send-password-reset", status_code=200)
+@limiter.limit("3/minute")
+def send_password_reset(request: Request, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.id == user["id"]).first()
+    code = str(random.randint(100000, 999999))
+    with _pwd_reset_lock:
+        _pwd_reset[user["id"]] = {"code": code, "expires_at": time.time() + 600}
+    try:
+        send_verification_email(db_user.email, code)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to send email")
+    return {"sent": True, "email": db_user.email}
+
+
+from pydantic import BaseModel as _BM
+
+class ChangePasswordRequest(_BM):
+    code: str
+    new_password: str
+
+
+@router.post("/change-password", status_code=200)
+def change_password(data: ChangePasswordRequest, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    with _pwd_reset_lock:
+        entry = _pwd_reset.get(user["id"])
+    if not entry:
+        raise HTTPException(status_code=400, detail="No reset code found. Request a new one.")
+    if time.time() > entry["expires_at"]:
+        with _pwd_reset_lock:
+            _pwd_reset.pop(user["id"], None)
+        raise HTTPException(status_code=400, detail="Code expired.")
+    if entry["code"] != data.code.strip():
+        raise HTTPException(status_code=400, detail="Invalid code.")
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+    db_user = db.query(User).filter(User.id == user["id"]).first()
+    db_user.hashed_password = hash_password(data.new_password)
+    db.commit()
+    with _pwd_reset_lock:
+        _pwd_reset.pop(user["id"], None)
+    return {"changed": True}
 
 
 @router.post("/avatar", response_model=UserOut)

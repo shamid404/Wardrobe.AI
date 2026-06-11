@@ -15,6 +15,9 @@ interface Props {
   onSave: (data: WishlistSaveData) => void;
   onCancel: () => void;
   uploading?: boolean;
+  geminiEnabled?: boolean;
+  clothingImageBase64?: string | null;
+  initialData?: Partial<WishlistSaveData & { id: string }>;
 }
 
 const SOURCES: { id: WishlistSource; label: string; color: string; icon: React.ReactNode }[] = [
@@ -84,13 +87,31 @@ export function getSourceMeta(source: string | null | undefined) {
   return SOURCES.find((s) => s.id === source) ?? null;
 }
 
-export function WishlistSaveModal({ onSave, onCancel, uploading }: Props) {
-  const [source, setSource] = useState<WishlistSource | null>(null);
-  const [productUrl, setProductUrl] = useState("");
-  const [description, setDescription] = useState("");
-  const [tagPhoto, setTagPhoto] = useState<string | null>(null);
+export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, clothingImageBase64, initialData }: Props) {
+  const [source, setSource] = useState<WishlistSource | null>((initialData?.source as WishlistSource) ?? null);
+  const [productUrl, setProductUrl] = useState(initialData?.product_url ?? "");
+  const [description, setDescription] = useState(initialData?.description ?? "");
+  const [tagPhoto, setTagPhoto] = useState<string | null>(initialData?.tag_photo_url ?? null);
   const [tagUploading, setTagUploading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const tagInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (!geminiEnabled || !clothingImageBase64 || initialData?.description) return;
+    setAnalyzing(true);
+    fetch("/shopping/analyze-clothing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image_base64: clothingImageBase64 }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.description) setDescription(data.description);
+        else if (data.name) setDescription(data.name);
+      })
+      .catch(() => {})
+      .finally(() => setAnalyzing(false));
+  }, []);
 
   const handleTagPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,7 +160,7 @@ export function WishlistSaveModal({ onSave, onCancel, uploading }: Props) {
         display: "flex", flexDirection: "column", gap: "18px",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div className="panel-title" style={{ fontSize: "16px" }}>Save to Wishlist</div>
+          <div className="panel-title" style={{ fontSize: "16px" }}>{initialData?.id ? "Edit Wishlist Item" : "Save to Wishlist"}</div>
           <button onClick={onCancel} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: "2px", display: "flex" }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -212,7 +233,10 @@ export function WishlistSaveModal({ onSave, onCancel, uploading }: Props) {
 
         {/* Description */}
         <div>
-          <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px", letterSpacing: "0.04em" }}>DESCRIPTION (OPTIONAL)</div>
+          <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px", letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: "6px" }}>
+            DESCRIPTION (OPTIONAL)
+            {analyzing && <span style={{ fontSize: "10px", color: "var(--accent-color)", display: "flex", alignItems: "center", gap: "4px" }}><svg style={{ animation: "spin 0.8s linear infinite" }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>AI analyzing…</span>}
+          </div>
           <textarea
             placeholder="e.g. white linen shirt, size M, ~4000₸"
             value={description}
@@ -238,7 +262,7 @@ export function WishlistSaveModal({ onSave, onCancel, uploading }: Props) {
           >
             {uploading
               ? <><svg style={{ animation: "spin 0.8s linear infinite" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>Saving…</>
-              : "♥ Save to Wishlist"
+              : initialData?.id ? "Save Changes" : "♥ Save to Wishlist"
             }
           </button>
         </div>

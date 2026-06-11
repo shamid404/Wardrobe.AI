@@ -31,6 +31,9 @@ const nextConfig = {
       { source: "/shopping/wishlist", destination: `${BACKEND_URL}/shopping/wishlist` },
       { source: "/shopping/wishlist/:path*", destination: `${BACKEND_URL}/shopping/wishlist/:path*` },
       { source: "/shopping/upload-image", destination: `${BACKEND_URL}/shopping/upload-image` },
+      { source: "/shopping/analyze-clothing", destination: `${BACKEND_URL}/shopping/analyze-clothing` },
+      { source: "/api/auth/send-password-reset", destination: `${BACKEND_URL}/auth/send-password-reset` },
+      { source: "/api/auth/change-password", destination: `${BACKEND_URL}/auth/change-password` },
     ];
   },
 };

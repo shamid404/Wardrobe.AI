@@ -6,6 +6,7 @@ import { motion, animate, AnimatePresence } from "framer-motion";
 import { clearAuth, getUser, saveUser, authHeaders } from "@/lib/auth";
 import { ImageCompareSlider } from "./ImageCompareSlider";
 import { WishlistSaveModal, getSourceMeta, type WishlistSaveData } from "./WishlistSaveModal";
+import { t as _t, getLang, saveLang, type Lang } from "@/lib/i18n";
 
 type CategoryKey = "top" | "bottom" | "outer" | "headwear" | "shoes" | "accessory";
 
@@ -251,6 +252,17 @@ export function TryOnStudio() {
   const [saveOutfitAi, setSaveOutfitAi] = useState(false);
   const [saveOutfitItemIds, setSaveOutfitItemIds] = useState<string[] | null>(null);
   const [settingsName, setSettingsName] = useState("");
+  const [isDark, setIsDark] = useState<boolean>(() => typeof window !== "undefined" && document.documentElement.classList.contains("dark"));
+  const [lang, setLang] = useState<Lang>(() => { if (typeof window === "undefined") return "en"; return (localStorage.getItem("wardrobe_lang") as Lang) ?? "en"; });
+  const [geminiVisionWardrobe, setGeminiVisionWardrobe] = useState<boolean>(() => typeof window !== "undefined" ? localStorage.getItem("gemini_vision_wardrobe") !== "false" : true);
+  const [geminiVisionWishlist, setGeminiVisionWishlist] = useState<boolean>(() => typeof window !== "undefined" ? localStorage.getItem("gemini_vision_wishlist") !== "false" : true);
+  const [defaultModel, setDefaultModel] = useState<ModelId>(() => (typeof window !== "undefined" ? (localStorage.getItem("default_tryon_model") as ModelId) : null) ?? "flux-2-pro");
+  const [defaultGenMode, setDefaultGenMode] = useState<GenerationMode>(() => (typeof window !== "undefined" ? (localStorage.getItem("default_gen_mode") as GenerationMode) : null) ?? "studio");
+  const [pwdStep, setPwdStep] = useState<"idle" | "sent" | "done">("idle");
+  const [pwdCode, setPwdCode] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [wishlistEditItem, setWishlistEditItem] = useState<WishlistItem | null>(null);
   const [weather, setWeather] = useState<{ temperature: number; description: string; unit: string } | null>(null);
   const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string; recommendedItems?: ClothingItem[] }[]>([]);
@@ -298,6 +310,26 @@ export function TryOnStudio() {
 
   const askConfirm = (opts: { title: string; message: string; confirmLabel: string; onConfirm: () => void }) =>
     setConfirmDialog(opts);
+
+  const tl = (key: Parameters<typeof _t>[0]) => _t(key, lang);
+
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("wardrobe_theme", next ? "dark" : "light");
+  };
+
+  const switchLang = (l: Lang) => {
+    setLang(l);
+    saveLang(l);
+  };
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("wardrobe_theme");
+    if (savedTheme === "dark") { document.documentElement.classList.add("dark"); setIsDark(true); }
+    else if (savedTheme === "light") { document.documentElement.classList.remove("dark"); setIsDark(false); }
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined" && !localStorage.getItem("wardrobe_tour_done_v1")) {
@@ -1108,21 +1140,25 @@ export function TryOnStudio() {
           WARDROBE<span>.AI</span>
         </div>
         <div className="header-nav" id="tour-tabs">
-          <a href="#" className={activeTab === "studio" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("studio"); }}>
+          <a href="#" className={activeTab === "studio" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("studio"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
             Studio
           </a>
-          <a id="tour-plan" href="#" className={activeTab === "plan" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("plan"); }}>
+          <a id="tour-plan" href="#" className={activeTab === "plan" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("plan"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             Plan
           </a>
-          <a href="#" className={activeTab === "history" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("history"); }}>
-            History {tryOnHistory.length > 0 && `(${tryOnHistory.length})`}
+          <a href="#" className={activeTab === "history" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("history"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            History
           </a>
-          <a href="#" className={activeTab === "outfits" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("outfits"); }}>
-            Outfits {savedOutfits.length > 0 && `(${savedOutfits.length})`}
+          <a href="#" className={activeTab === "outfits" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("outfits"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/></svg>
+            Outfits
           </a>
           <a id="tour-laundry" href="#" className={activeTab === "laundry" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("laundry"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/><line x1="10" y1="7" x2="14" y2="7"/></svg>
-            Laundry {laundryItems.length > 0 && `(${laundryItems.length})`}
+            Laundry
           </a>
           <a href="#" className={activeTab === "shopping" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("shopping"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
@@ -1137,6 +1173,20 @@ export function TryOnStudio() {
               <span>{weather.description}</span>
             </div>
           )}
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            title={isDark ? "Switch to light" : "Switch to dark"}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "8px", border: "1px solid var(--border-subtle)", background: "var(--bg-primary)", cursor: "pointer", color: "var(--text-secondary)", transition: "all 0.15s", flexShrink: 0 }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.borderColor = "var(--border-strong)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; e.currentTarget.style.borderColor = "var(--border-subtle)"; }}
+          >
+            {isDark
+              ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            }
+          </button>
+
           {/* Avatar dropdown */}
           <div ref={avatarMenuRef} style={{ position: "relative" }}>
             <button
@@ -1616,12 +1666,186 @@ export function TryOnStudio() {
                 </div>
               </div>
 
+              {/* Appearance */}
               <div style={{ marginBottom: "32px" }}>
-                <div className="panel-title" style={{ marginBottom: "16px" }}>Data</div>
+                <div className="panel-title" style={{ marginBottom: "16px" }}>{tl("settings_appearance")}</div>
+                <div className="analysis-card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {/* Theme */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>{tl("settings_theme")}</span>
+                    <div style={{ display: "flex", borderRadius: "8px", border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
+                      {(["light", "dark"] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => { const next = t === "dark"; setIsDark(next); document.documentElement.classList.toggle("dark", next); localStorage.setItem("wardrobe_theme", t); }}
+                          style={{ padding: "6px 16px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s", background: (t === "dark") === isDark ? "var(--accent-color)" : "transparent", color: (t === "dark") === isDark ? "#fff" : "var(--text-secondary)" }}
+                        >
+                          {t === "dark" ? tl("settings_theme_dark") : tl("settings_theme_light")}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Language */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>{tl("settings_language")}</span>
+                    <div style={{ display: "flex", borderRadius: "8px", border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
+                      {(["en", "ru"] as const).map((l) => (
+                        <button
+                          key={l}
+                          onClick={() => switchLang(l)}
+                          style={{ padding: "6px 16px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s", background: lang === l ? "var(--accent-color)" : "transparent", color: lang === l ? "#fff" : "var(--text-secondary)" }}
+                        >
+                          {l === "en" ? "EN" : "RU"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Settings */}
+              <div style={{ marginBottom: "32px" }}>
+                <div className="panel-title" style={{ marginBottom: "16px" }}>{tl("settings_ai")}</div>
+                <div className="analysis-card" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  <div>
+                    <div style={{ fontSize: "13px", color: "var(--text-primary)", marginBottom: "8px" }}>{tl("settings_gemini_vision")}</div>
+                    <div style={{ display: "flex", borderRadius: "8px", border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
+                      {([["geminiVisionWardrobe", tl("settings_gemini_wardrobe"), geminiVisionWardrobe, (v: boolean) => { setGeminiVisionWardrobe(v); localStorage.setItem("gemini_vision_wardrobe", v ? "true" : "false"); }], ["geminiVisionWishlist", tl("settings_gemini_wishlist"), geminiVisionWishlist, (v: boolean) => { setGeminiVisionWishlist(v); localStorage.setItem("gemini_vision_wishlist", v ? "true" : "false"); }]] as [string, string, boolean, (v: boolean) => void][]).map(([key, label, active, toggle]) => (
+                        <button
+                          key={key}
+                          onClick={() => toggle(!active)}
+                          style={{ flex: 1, padding: "8px 12px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s", background: active ? "var(--accent-color)" : "transparent", color: active ? "#fff" : "var(--text-secondary)", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "6px" }}>Auto-fills description when adding wardrobe or wishlist items</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Try-On Defaults */}
+              <div style={{ marginBottom: "32px" }}>
+                <div className="panel-title" style={{ marginBottom: "16px" }}>{tl("settings_tryon_defaults")}</div>
+                <div className="analysis-card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>{tl("settings_default_model")}</span>
+                    <div style={{ display: "flex", borderRadius: "8px", border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
+                      {([["flux-2-pro", "Flux 2 Pro"], ["nano-banana-2", "Nano Banana"]] as [ModelId, string][]).map(([id, label]) => (
+                        <button
+                          key={id}
+                          onClick={() => { setDefaultModel(id); localStorage.setItem("default_tryon_model", id); }}
+                          style={{ padding: "6px 14px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s", background: defaultModel === id ? "var(--accent-color)" : "transparent", color: defaultModel === id ? "#fff" : "var(--text-secondary)" }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>{tl("settings_default_mode")}</span>
+                    <div style={{ display: "flex", borderRadius: "8px", border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
+                      {([["studio", "Studio"], ["original", "Original"]] as [GenerationMode, string][]).map(([id, label]) => (
+                        <button
+                          key={id}
+                          onClick={() => { setDefaultGenMode(id); localStorage.setItem("default_gen_mode", id); }}
+                          style={{ padding: "6px 14px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s", background: defaultGenMode === id ? "var(--accent-color)" : "transparent", color: defaultGenMode === id ? "#fff" : "var(--text-secondary)" }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Password Change */}
+              <div style={{ marginBottom: "32px" }}>
+                <div className="panel-title" style={{ marginBottom: "16px" }}>{tl("settings_change_password")}</div>
+                <div className="analysis-card" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{tl("settings_change_password_desc")}</div>
+                  {pwdStep === "idle" && (
+                    <button
+                      className="btn btn-ghost"
+                      disabled={pwdLoading}
+                      onClick={async () => {
+                        setPwdLoading(true);
+                        try {
+                          const res = await fetch("/api/auth/send-password-reset", { method: "POST", headers: authHeaders() });
+                          if (!res.ok) throw new Error();
+                          setPwdStep("sent");
+                          showToast("✓ Code sent to your email");
+                        } catch {
+                          showToast("❌ Failed to send code");
+                        } finally { setPwdLoading(false); }
+                      }}
+                      style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: "6px" }}
+                    >
+                      {pwdLoading && <svg style={{ animation: "spin 0.8s linear infinite" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>}
+                      {tl("settings_send_code")}
+                    </button>
+                  )}
+                  {pwdStep === "sent" && (
+                    <>
+                      <input
+                        className="form-input"
+                        placeholder={tl("settings_enter_code")}
+                        value={pwdCode}
+                        onChange={(e) => setPwdCode(e.target.value)}
+                        maxLength={6}
+                      />
+                      <input
+                        className="form-input"
+                        type="password"
+                        placeholder={tl("settings_new_password")}
+                        value={pwdNew}
+                        onChange={(e) => setPwdNew(e.target.value)}
+                      />
+                      <button
+                        className="btn btn-primary"
+                        disabled={pwdLoading || pwdCode.length < 6 || pwdNew.length < 6}
+                        onClick={async () => {
+                          setPwdLoading(true);
+                          try {
+                            const res = await fetch("/api/auth/change-password", {
+                              method: "POST",
+                              headers: { ...authHeaders(), "Content-Type": "application/json" },
+                              body: JSON.stringify({ code: pwdCode, new_password: pwdNew }),
+                            });
+                            if (!res.ok) throw new Error((await res.json()).detail ?? "Error");
+                            setPwdStep("done");
+                            setPwdCode(""); setPwdNew("");
+                            showToast("✓ Password changed");
+                          } catch (err: unknown) {
+                            showToast(`❌ ${err instanceof Error ? err.message : "Failed"}`);
+                          } finally { setPwdLoading(false); }
+                        }}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                      >
+                        {pwdLoading && <svg style={{ animation: "spin 0.8s linear infinite" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>}
+                        {tl("settings_confirm_change")}
+                      </button>
+                    </>
+                  )}
+                  {pwdStep === "done" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text-secondary)" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6abf7a" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      Password updated successfully.
+                      <button className="btn btn-ghost" style={{ fontSize: "11px" }} onClick={() => setPwdStep("idle")}>Reset</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Data */}
+              <div style={{ marginBottom: "32px" }}>
+                <div className="panel-title" style={{ marginBottom: "16px" }}>{tl("settings_data")}</div>
                 <div className="analysis-card" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>
-                      Try-on history <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>({tryOnHistory.length} items)</span>
+                      {tl("settings_tryon_history")} <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>({tryOnHistory.length})</span>
                     </span>
                     <button
                       className="btn btn-ghost"
@@ -1638,12 +1862,12 @@ export function TryOnStudio() {
                       })}
                       style={{ fontSize: "11px" }}
                     >
-                      Clear
+                      {tl("settings_clear")}
                     </button>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>
-                      Wardrobe <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>({wardrobe.length} items)</span>
+                      {tl("settings_wardrobe")} <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>({wardrobe.length})</span>
                     </span>
                     <button
                       className="btn btn-ghost"
@@ -1656,28 +1880,28 @@ export function TryOnStudio() {
                       })}
                       style={{ fontSize: "11px" }}
                     >
-                      Clear
+                      {tl("settings_clear")}
                     </button>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>Onboarding tour</span>
+                    <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>{tl("settings_onboarding")}</span>
                     <button
                       className="btn btn-ghost"
                       onClick={() => { localStorage.removeItem("wardrobe_tour_done_v1"); setActiveTab("studio"); setShowTour(true); showToast("✓ Tour reset"); }}
                       style={{ fontSize: "11px" }}
                     >
-                      Replay
+                      {tl("settings_replay")}
                     </button>
                   </div>
                 </div>
               </div>
 
               <div style={{ marginBottom: "32px" }}>
-                <div className="panel-title" style={{ marginBottom: "16px", color: "#b85858" }}>Danger Zone</div>
+                <div className="panel-title" style={{ marginBottom: "16px", color: "#b85858" }}>{tl("settings_danger")}</div>
                 <div className="analysis-card" style={{ border: "1px solid rgba(184,88,88,0.25)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div>
-                    <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "3px" }}>Delete Account</div>
-                    <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Permanently remove your account and all data</div>
+                    <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "3px" }}>{tl("settings_delete_account")}</div>
+                    <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{tl("settings_delete_desc")}</div>
                   </div>
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
@@ -1685,7 +1909,7 @@ export function TryOnStudio() {
                     onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(184,88,88,0.08)"; e.currentTarget.style.borderColor = "#b85858"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(184,88,88,0.5)"; }}
                   >
-                    Delete
+                    {tl("settings_delete_btn")}
                   </button>
                 </div>
               </div>
@@ -2343,15 +2567,25 @@ export function TryOnStudio() {
                                   </a>
                                 )}
                               </div>
-                              <button
-                                onClick={async () => {
-                                  await fetch(`/shopping/wishlist/${item.id}`, { method: "DELETE", headers: authHeaders() });
-                                  setWishlist((prev) => prev.filter((w) => w.id !== item.id));
-                                }}
-                                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: "2px" }}
-                              >
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                              </button>
+                              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                <button
+                                  onClick={() => setWishlistEditItem(item)}
+                                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: "2px" }}
+                                  title="Edit"
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    await fetch(`/shopping/wishlist/${item.id}`, { method: "DELETE", headers: authHeaders() });
+                                    setWishlist((prev) => prev.filter((w) => w.id !== item.id));
+                                  }}
+                                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: "2px" }}
+                                  title="Delete"
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -3113,6 +3347,8 @@ export function TryOnStudio() {
       {wishlistModalResult && (
         <WishlistSaveModal
           uploading={wishlistSaving}
+          geminiEnabled={geminiVisionWishlist}
+          clothingImageBase64={wishlistModalResult.clothingImage ?? null}
           onCancel={() => setWishlistModalResult(null)}
           onSave={async (data: WishlistSaveData) => {
             if (!wishlistModalResult) return;
@@ -3138,6 +3374,46 @@ export function TryOnStudio() {
               showToast("♥ Saved to wishlist");
             } catch {
               showToast("❌ Failed to save");
+            } finally {
+              setWishlistSaving(false);
+            }
+          }}
+        />
+      )}
+
+      {wishlistEditItem && (
+        <WishlistSaveModal
+          uploading={wishlistSaving}
+          geminiEnabled={false}
+          initialData={{
+            id: wishlistEditItem.id,
+            source: (wishlistEditItem.source as import("./WishlistSaveModal").WishlistSource) ?? null,
+            product_url: wishlistEditItem.product_url ?? "",
+            description: wishlistEditItem.description ?? "",
+            tag_photo_url: wishlistEditItem.tag_photo_url ?? null,
+          }}
+          onCancel={() => setWishlistEditItem(null)}
+          onSave={async (data: WishlistSaveData) => {
+            if (!wishlistEditItem) return;
+            setWishlistSaving(true);
+            try {
+              const res = await fetch(`/shopping/wishlist/${wishlistEditItem.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify({
+                  source: data.source,
+                  product_url: data.product_url || null,
+                  tag_photo_url: data.tag_photo_url || null,
+                  description: data.description || null,
+                }),
+              });
+              if (!res.ok) throw new Error();
+              const updated = await res.json();
+              setWishlist((prev) => prev.map((w) => w.id === wishlistEditItem.id ? updated : w));
+              setWishlistEditItem(null);
+              showToast("✓ Wishlist item updated");
+            } catch {
+              showToast("❌ Failed to update");
             } finally {
               setWishlistSaving(false);
             }

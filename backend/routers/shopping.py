@@ -66,6 +66,20 @@ def remove_from_wishlist(item_id: str, user=Depends(get_current_user), db: Sessi
     return {"deleted": True}
 
 
+@router.patch("/wishlist/{item_id}", response_model=WishlistItemOut)
+def update_wishlist_item(item_id: str, body: WishlistItemCreate, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    item = db.query(WishlistItem).filter(WishlistItem.id == item_id, WishlistItem.user_id == user["id"]).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Wishlist item not found")
+    for field in ("source", "product_url", "tag_photo_url", "description", "notes"):
+        val = getattr(body, field, None)
+        if val is not None:
+            setattr(item, field, val)
+    db.commit()
+    db.refresh(item)
+    return _item_to_out(item)
+
+
 class ImageUploadBody(BaseModel):
     image_base64: str
 
@@ -74,3 +88,10 @@ class ImageUploadBody(BaseModel):
 def upload_wishlist_image(body: ImageUploadBody, user=Depends(get_current_user)):
     url = upload_file(body.image_base64)
     return {"url": url}
+
+
+@router.post("/analyze-clothing")
+def analyze_wishlist_clothing(body: ImageUploadBody, user=Depends(get_current_user)):
+    from ..services.vision_service import analyze_clothing
+    result = analyze_clothing(body.image_base64)
+    return result
