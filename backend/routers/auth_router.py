@@ -260,7 +260,7 @@ def send_password_reset(request: Request, user=Depends(get_current_user), db: Se
     with _pwd_reset_lock:
         _pwd_reset[user["id"]] = {"code": code, "expires_at": time.time() + 600}
     try:
-        send_verification_email(db_user.email, code)
+        send_verification_email(db_user.email, code, db_user.name or "")
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to send email")
     return {"sent": True, "email": db_user.email}
