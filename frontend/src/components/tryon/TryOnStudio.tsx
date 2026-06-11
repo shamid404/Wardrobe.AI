@@ -1118,13 +1118,12 @@ export function TryOnStudio() {
             Outfits {savedOutfits.length > 0 && `(${savedOutfits.length})`}
           </a>
           <a id="tour-laundry" href="#" className={activeTab === "laundry" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("laundry"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            🧺 Laundry {laundryItems.length > 0 && `(${laundryItems.length})`}
-          </a>
-          <a href="#" className={activeTab === "settings" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("settings"); }}>
-            Settings
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/><line x1="10" y1="7" x2="14" y2="7"/></svg>
+            Laundry {laundryItems.length > 0 && `(${laundryItems.length})`}
           </a>
           <a href="#" className={activeTab === "shopping" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("shopping"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            🛍 Shopping
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+            Shopping
           </a>
         </div>
         <div className="header-user">
@@ -3067,7 +3066,7 @@ export function TryOnStudio() {
           <button
             id="tour-wardrobe-mobile"
             className="mobile-fab"
-            onClick={() => { setMobileWardrobeOpen(v => !v); setMobilePhotoOpen(false); }}
+            onClick={() => { setMobileWardrobeOpen(v => !v); setMobilePhotoOpen(false); setChatOpen(false); }}
             style={{ width: "52px", height: "52px", borderRadius: "50%", background: mobileWardrobeOpen ? "var(--accent-color)" : "var(--bg-surface)", border: "1.5px solid var(--border-subtle)", cursor: "pointer", display: "none", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.14)", color: mobileWardrobeOpen ? "#fff" : "var(--text-primary)", pointerEvents: "auto", transition: "background 0.2s, color 0.2s" }}
             title="Wardrobe"
           >
@@ -3075,7 +3074,7 @@ export function TryOnStudio() {
           </button>
           <button
             className="mobile-fab"
-            onClick={() => { setMobilePhotoOpen(v => !v); setMobileWardrobeOpen(false); }}
+            onClick={() => { setMobilePhotoOpen(v => !v); setMobileWardrobeOpen(false); setChatOpen(false); }}
             style={{ width: "52px", height: "52px", borderRadius: "50%", background: mobilePhotoOpen ? "var(--accent-color)" : "var(--bg-surface)", border: "1.5px solid var(--border-subtle)", cursor: "pointer", display: "none", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.14)", color: mobilePhotoOpen ? "#fff" : "var(--text-primary)", pointerEvents: "auto", transition: "background 0.2s, color 0.2s" }}
             title="Photo"
           >
@@ -3144,8 +3143,12 @@ export function TryOnStudio() {
           Outfits
         </button>
         <button id="tour-laundry-mobile" onClick={() => { setActiveTab("laundry"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "laundry" ? "active" : ""}>
-          <span style={{ fontSize: "16px", lineHeight: 1 }}>🧺</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/><line x1="10" y1="7" x2="14" y2="7"/></svg>
           Laundry{laundryItems.length > 0 ? ` (${laundryItems.length})` : ""}
+        </button>
+        <button onClick={() => { setActiveTab("shopping"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "shopping" ? "active" : ""}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+          Shop
         </button>
         <button onClick={() => { setActiveTab("settings"); setMobileWardrobeOpen(false); setMobilePhotoOpen(false); }} className={activeTab === "settings" ? "active" : ""}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
