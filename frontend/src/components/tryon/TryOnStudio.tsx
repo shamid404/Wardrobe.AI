@@ -3477,7 +3477,8 @@ export function TryOnStudio() {
       {wishlistEditItem && (
         <WishlistSaveModal
           uploading={wishlistSaving}
-          geminiEnabled={false}
+          geminiEnabled={geminiVisionWishlist}
+          clothingImageUrl={wishlistEditItem.clothing_image_url ?? null}
           initialData={{
             id: wishlistEditItem.id,
             source: (wishlistEditItem.source as import("./WishlistSaveModal").WishlistSource) ?? null,

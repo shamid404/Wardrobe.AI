@@ -17,6 +17,7 @@ interface Props {
   uploading?: boolean;
   geminiEnabled?: boolean;
   clothingImageBase64?: string | null;
+  clothingImageUrl?: string | null;
   initialData?: Partial<WishlistSaveData & { id: string }>;
 }
 
@@ -75,7 +76,7 @@ export function getSourceMeta(source: string | null | undefined) {
   return SOURCES.find((s) => s.id === source) ?? null;
 }
 
-export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, clothingImageBase64, initialData }: Props) {
+export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, clothingImageBase64, clothingImageUrl, initialData }: Props) {
   const [source, setSource] = useState<WishlistSource | null>((initialData?.source as WishlistSource) ?? null);
   const [productUrl, setProductUrl] = useState(initialData?.product_url ?? "");
   const [description, setDescription] = useState(initialData?.description ?? "");
@@ -90,12 +91,15 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
   };
 
   const analyzeClothing = React.useCallback(() => {
-    if (!clothingImageBase64) return;
+    if (!clothingImageBase64 && !clothingImageUrl) return;
     setAnalyzing(true);
+    const body = clothingImageBase64
+      ? { image_base64: clothingImageBase64 }
+      : { image_url: clothingImageUrl };
     fetch("/shopping/analyze-clothing", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeader() },
-      body: JSON.stringify({ image_base64: clothingImageBase64 }),
+      body: JSON.stringify(body),
     })
       .then((r) => r.json())
       .then((data) => {
@@ -104,10 +108,12 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
       })
       .catch(() => {})
       .finally(() => setAnalyzing(false));
-  }, [clothingImageBase64]);
+  }, [clothingImageBase64, clothingImageUrl]);
 
   React.useEffect(() => {
-    if (!geminiEnabled || !clothingImageBase64 || initialData?.description) return;
+    if (!geminiEnabled) return;
+    if (!clothingImageBase64 && !clothingImageUrl) return;
+    if (initialData?.description) return;
     analyzeClothing();
   }, []);
 
@@ -235,7 +241,7 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
             DESCRIPTION (OPTIONAL)
             {analyzing
               ? <span style={{ fontSize: "10px", color: "var(--accent-color)", display: "flex", alignItems: "center", gap: "4px" }}><svg style={{ animation: "spin 0.8s linear infinite" }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>AI analyzing…</span>
-              : clothingImageBase64 && geminiEnabled && (
+              : (clothingImageBase64 || clothingImageUrl) && geminiEnabled && (
                 <button onClick={analyzeClothing} title="Regenerate AI description" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--accent-color)", padding: "1px", display: "flex", alignItems: "center" }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
                 </button>
