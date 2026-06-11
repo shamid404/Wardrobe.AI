@@ -103,8 +103,8 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
     })
       .then((r) => r.json())
       .then((data) => {
-        if (data.description) setDescription(data.description);
-        else if (data.name) setDescription(data.name);
+        const parts = [data.description, data.price].filter(Boolean);
+        if (parts.length) setDescription(parts.join(" · "));
       })
       .catch(() => {})
       .finally(() => setAnalyzing(false));

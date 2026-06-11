@@ -107,6 +107,6 @@ def upload_wishlist_image(body: ImageUploadBody, user=Depends(get_current_user))
 
 @router.post("/analyze-clothing")
 def analyze_wishlist_clothing(body: ImageUploadBody, user=Depends(get_current_user)):
-    from ..services.vision_service import analyze_clothing
-    result = analyze_clothing(_resolve_base64(body))
+    from ..services.vision_service import analyze_wishlist_item
+    result = analyze_wishlist_item(_resolve_base64(body))
     return result

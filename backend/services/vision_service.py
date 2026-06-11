@@ -100,6 +100,28 @@ Rules:
     return result
 
 
+def analyze_wishlist_item(image_base64: str) -> dict:
+    """Lightweight wishlist analysis — short description + price estimate only."""
+    if not GEMINI_API_KEY:
+        return {}
+    raw = image_base64.split(",")[1] if image_base64.startswith("data:") else image_base64
+    payload = {
+        "contents": [{
+            "parts": [
+                {"inline_data": {"mime_type": "image/jpeg", "data": raw}},
+                {"text": 'Look at this clothing item. Return ONLY valid JSON:\n{"description": "one short sentence: color, type, style (e.g. Oversized beige linen shirt)", "price": "estimated retail price range in Kazakhstani tenge (e.g. 8 000–15 000 ₸)"}'},
+            ]
+        }],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 80,
+            "responseMimeType": "application/json",
+        },
+    }
+    result = _call_gemini(payload)
+    return result or {}
+
+
 def analyze_clothing(image_base64: str) -> dict:
     """Legacy wrapper — used by /analyze-clothing endpoint."""
     if not GEMINI_API_KEY:
