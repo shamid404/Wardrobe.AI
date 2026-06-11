@@ -846,7 +846,7 @@ export function TryOnStudio() {
 
         setRemovedBgImage(removedDataUrl);
 
-        if (clothingInfo) {
+        if (clothingInfo && geminiVisionWardrobe) {
           setItemForm((p) => ({
             ...p,
             name: clothingInfo.name || p.name,
