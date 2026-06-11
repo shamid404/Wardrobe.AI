@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
+import { authHeaders } from "@/lib/auth";
 
 export type WishlistSource = "pinterest" | "wildberries" | "kaspi" | "pinduoduo" | "store" | "other";
 
@@ -83,30 +84,27 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
   const [tagPhoto, setTagPhoto] = useState<string | null>(initialData?.tag_photo_url ?? null);
   const [tagUploading, setTagUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
-
-  const getAuthHeader = (): Record<string, string> => {
-    const token = localStorage.getItem("wardrobe_token");
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
 
   const analyzeClothing = React.useCallback(() => {
     if (!clothingImageBase64 && !clothingImageUrl) return;
     setAnalyzing(true);
+    setAnalyzeError(null);
     const body = clothingImageBase64
       ? { image_base64: clothingImageBase64 }
       : { image_url: clothingImageUrl };
     fetch("/shopping/analyze-clothing", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
     })
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(r.status === 401 ? "Auth error" : "Server error"); return r.json(); })
       .then((data) => {
         const parts = [data.description, data.price].filter(Boolean);
         if (parts.length) setDescription(parts.join(" · "));
       })
-      .catch(() => {})
+      .catch((e: Error) => setAnalyzeError(e.message ?? "AI analysis failed"))
       .finally(() => setAnalyzing(false));
   }, [clothingImageBase64, clothingImageUrl]);
 
@@ -115,7 +113,7 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
     if (!clothingImageBase64 && !clothingImageUrl) return;
     if (initialData?.description) return;
     analyzeClothing();
-  }, []);
+  }, [analyzeClothing, geminiEnabled]);
 
   const handleTagPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -127,7 +125,7 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
       try {
         const res = await fetch("/shopping/upload-image", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...getAuthHeader() },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ image_base64: b64 }),
         });
         if (res.ok) {
@@ -241,11 +239,20 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
             DESCRIPTION (OPTIONAL)
             {analyzing
               ? <span style={{ fontSize: "10px", color: "var(--accent-color)", display: "flex", alignItems: "center", gap: "4px" }}><svg style={{ animation: "spin 0.8s linear infinite" }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>AI analyzing…</span>
-              : (clothingImageBase64 || clothingImageUrl) && geminiEnabled && (
-                <button onClick={analyzeClothing} title="Regenerate AI description" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--accent-color)", padding: "1px", display: "flex", alignItems: "center" }}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-                </button>
-              )
+              : analyzeError
+                ? <span style={{ fontSize: "10px", color: "#b85858", display: "flex", alignItems: "center", gap: "4px" }}>
+                    {analyzeError}
+                    {(clothingImageBase64 || clothingImageUrl) && geminiEnabled && (
+                      <button onClick={analyzeClothing} title="Retry" style={{ background: "none", border: "none", cursor: "pointer", color: "#b85858", padding: "1px", display: "flex", alignItems: "center" }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                      </button>
+                    )}
+                  </span>
+                : (clothingImageBase64 || clothingImageUrl) && geminiEnabled && (
+                  <button onClick={analyzeClothing} title="Regenerate AI description" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--accent-color)", padding: "1px", display: "flex", alignItems: "center" }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-6.22-8.56L23 10"/></svg>
+                  </button>
+                )
             }
           </div>
           <textarea

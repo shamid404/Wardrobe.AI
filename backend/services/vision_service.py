@@ -41,6 +41,16 @@ def _call_gemini(payload: dict) -> dict | None:
     return None
 
 
+def _detect_mime(image_bytes: bytes) -> str:
+    if image_bytes[:4] == b"\x89PNG":
+        return "image/png"
+    if image_bytes[:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
+        return "image/webp"
+    if image_bytes[:3] in (b"GIF", ):
+        return "image/gif"
+    return "image/jpeg"
+
+
 def analyze_and_validate(image_bytes: bytes) -> dict:
     """Validate clothing image and extract metadata.
 
@@ -78,7 +88,7 @@ Rules:
     payload = {
         "contents": [{
             "parts": [
-                {"inline_data": {"mime_type": "image/jpeg", "data": raw}},
+                {"inline_data": {"mime_type": _detect_mime(image_bytes), "data": raw}},
                 {"text": prompt},
             ]
         }],
@@ -105,10 +115,14 @@ def analyze_wishlist_item(image_base64: str) -> dict:
     if not GEMINI_API_KEY:
         return {}
     raw = image_base64.split(",")[1] if image_base64.startswith("data:") else image_base64
+    try:
+        mime = _detect_mime(base64.b64decode(raw))
+    except Exception:
+        mime = "image/jpeg"
     payload = {
         "contents": [{
             "parts": [
-                {"inline_data": {"mime_type": "image/jpeg", "data": raw}},
+                {"inline_data": {"mime_type": mime, "data": raw}},
                 {"text": 'Look at this clothing item. Return ONLY valid JSON:\n{"description": "one short sentence: color, type, style (e.g. Oversized beige linen shirt)", "price": "estimated retail price range in Kazakhstani tenge (e.g. 8 000–15 000 ₸)"}'},
             ]
         }],
