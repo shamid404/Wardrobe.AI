@@ -132,5 +132,9 @@ class WishlistItem(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     preview_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     clothing_image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)  # pinterest|wildberries|kaspi|pinduoduo|store|other
+    product_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tag_photo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

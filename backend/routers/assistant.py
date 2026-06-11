@@ -12,7 +12,7 @@ from typing import List, Optional
 from ..auth import get_current_user
 from ..config import GEMINI_API_KEY
 from ..db.database import get_db
-from ..db.models import WardrobeItem, Outfit, ChatSession, ChatMessage as ChatMessageModel
+from ..db.models import WardrobeItem, Outfit, ChatSession, ChatMessage as ChatMessageModel, WishlistItem
 from ..services.gemini import recover_message
 from .feedback import get_feedback_context
 
@@ -118,6 +118,25 @@ async def assistant_chat(
     if req.lat is not None and req.lon is not None:
         weather_text = f"\n\nWeather context:\n{_fetch_forecast(req.lat, req.lon)}"
 
+    # Build wishlist context — only if user is asking about buying/shopping
+    wishlist_section = ""
+    shopping_keywords = {"wishlist", "вишлист", "купить", "buy", "purchase", "магазин", "store", "shopping", "шопинг", "хочу", "want to buy", "заказать", "order"}
+    msg_lower = req.message.lower()
+    if any(kw in msg_lower for kw in shopping_keywords):
+        wish_items = db.query(WishlistItem).filter(WishlistItem.user_id == user["id"]).order_by(WishlistItem.created_at.desc()).all()
+        if wish_items:
+            wish_lines = []
+            for w in wish_items:
+                parts = []
+                if w.description:
+                    parts.append(w.description)
+                if w.source:
+                    parts.append(f"source: {w.source}")
+                if w.product_url:
+                    parts.append(f"link: {w.product_url}")
+                wish_lines.append("  - " + (", ".join(parts) if parts else f"item {w.id}"))
+            wishlist_section = f"\n\n<user_wishlist>\n" + "\n".join(wish_lines) + "\n</user_wishlist>"
+
     # Build feedback context
     feedback_text = get_feedback_context(user["id"], db)
     feedback_section = f"\n\n<user_preferences>\n{feedback_text}\n</user_preferences>" if feedback_text else ""
@@ -131,7 +150,7 @@ Your role is to help users build outfits and give style advice based ONLY on ite
 
 <user_outfits>
 {outfits_text}
-</user_outfits>{weather_text}
+</user_outfits>{wishlist_section}{weather_text}
 
 IMPORTANT — Response format:
 Always respond with valid JSON in this exact structure:
@@ -153,6 +172,7 @@ Rules:
 - SCORE EXPLANATIONS: When asked why an outfit scored a certain Fit/Style/Color Harmony value, look up that outfit in the user's saved outfits list to see which items it contains. Then explain why THOSE specific items produced THAT exact score — based on their actual colors, categories, and how they pair together. Do NOT explain what the metric means in general. Give one concrete improvement tip using items from the wardrobe.
 - Respond in the same language the user writes in (message field).
 - If the wardrobe is empty, suggest they add items first and set recommended_items to [].
+- If <user_wishlist> is present, you may suggest items from it when the user asks about buying or shopping. Mention the description and source if available. Wishlist items are NOT in the wardrobe — do NOT add them to recommended_items.
 - Return ONLY the JSON object, no markdown, no extra text."""
 
     # Load session early so we can use DB history (not client-provided history)

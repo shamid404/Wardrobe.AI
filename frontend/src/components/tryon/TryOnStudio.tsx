@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, animate, AnimatePresence } from "framer-motion";
 import { clearAuth, getUser, saveUser, authHeaders } from "@/lib/auth";
 import { ImageCompareSlider } from "./ImageCompareSlider";
+import { WishlistSaveModal, getSourceMeta, type WishlistSaveData } from "./WishlistSaveModal";
 
 type CategoryKey = "top" | "bottom" | "outer" | "headwear" | "shoes" | "accessory";
 
@@ -61,7 +62,7 @@ type PlanItem = { item_id: string; name: string; category: string; image_url: st
 type DayPlan = { date: string; occasion: string | null; note: string | null; weather: string | null; items: PlanItem[] };
 
 type ShoppingResult = { id: string; image: string; clothingImage: string; timestamp: Date; savedToWishlist: boolean };
-type WishlistItem = { id: string; preview_url: string | null; clothing_image_url: string | null; notes: string | null; created_at: string };
+type WishlistItem = { id: string; preview_url: string | null; clothing_image_url: string | null; source: string | null; product_url: string | null; tag_photo_url: string | null; description: string | null; notes: string | null; created_at: string };
 type GenerationMode = "studio" | "original";
 type ModelId = "flux-2-pro" | "nano-banana-2";
 
@@ -289,6 +290,8 @@ export function TryOnStudio() {
   const [compareSelection, setCompareSelection] = useState<string[]>([]);
   const [showCompareSlider, setShowCompareSlider] = useState(false);
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
+  const [wishlistModalResult, setWishlistModalResult] = useState<ShoppingResult | null>(null);
+  const [wishlistSaving, setWishlistSaving] = useState(false);
   const [shoppingTryOnLoading, setShoppingTryOnLoading] = useState(false);
   const shoppingFileInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
@@ -2270,22 +2273,7 @@ export function TryOnStudio() {
                                 <button
                                   className="btn btn-ghost"
                                   disabled={result.savedToWishlist}
-                                  onClick={async () => {
-                                    try {
-                                      const res = await fetch("/shopping/wishlist", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json", ...authHeaders() },
-                                        body: JSON.stringify({ preview_url: result.image, clothing_image_url: result.clothingImage }),
-                                      });
-                                      if (!res.ok) throw new Error();
-                                      const created = await res.json();
-                                      setWishlist((prev) => [created, ...prev]);
-                                      setShoppingResults((prev) => prev.map((r) => r.id === result.id ? { ...r, savedToWishlist: true } : r));
-                                      showToast("♥ Saved to wishlist");
-                                    } catch {
-                                      showToast("❌ Failed to save");
-                                    }
-                                  }}
+                                  onClick={() => { if (!result.savedToWishlist) setWishlistModalResult(result); }}
                                   style={{ flex: 1, fontSize: "11px", padding: "5px 0" }}
                                 >
                                   {result.savedToWishlist ? "Saved ♥" : "Wishlist"}
@@ -2326,23 +2314,45 @@ export function TryOnStudio() {
                       {wishlist.map((item) => (
                         <div key={item.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", overflow: "hidden", background: "var(--bg-surface)", boxShadow: "var(--shadow-card)" }}>
                           {item.preview_url && (
-                            <div style={{ aspectRatio: "9/16", overflow: "hidden", background: "var(--bg-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <div style={{ position: "relative", aspectRatio: "9/16", overflow: "hidden", background: "var(--bg-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               <img src={item.preview_url} style={{ width: "100%", height: "100%", objectFit: "contain" }} alt="wishlist item" />
+                              {item.source && (() => {
+                                const meta = getSourceMeta(item.source);
+                                return meta ? (
+                                  <div style={{ position: "absolute", top: "6px", left: "6px", background: meta.color, borderRadius: "6px", padding: "3px 6px", display: "flex", alignItems: "center", gap: "4px", color: "#fff", fontSize: "9px", fontWeight: 700 }}>
+                                    <span style={{ color: "#fff", display: "flex" }}>{meta.icon}</span>
+                                    {meta.label}
+                                  </div>
+                                ) : null;
+                              })()}
                             </div>
                           )}
-                          <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <span style={{ fontSize: "10px", color: "var(--text-secondary)" }}>
-                              {new Date(item.created_at).toLocaleDateString()}
-                            </span>
-                            <button
-                              onClick={async () => {
-                                await fetch(`/shopping/wishlist/${item.id}`, { method: "DELETE", headers: authHeaders() });
-                                setWishlist((prev) => prev.filter((w) => w.id !== item.id));
-                              }}
-                              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: "2px" }}
-                            >
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                            </button>
+                          <div style={{ padding: "8px 10px 10px" }}>
+                            {item.description && (
+                              <div style={{ fontSize: "11px", color: "var(--text-primary)", marginBottom: "4px", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                                {item.description}
+                              </div>
+                            )}
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "4px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                <span style={{ fontSize: "10px", color: "var(--text-secondary)" }}>{new Date(item.created_at).toLocaleDateString()}</span>
+                                {item.product_url && (
+                                  <a href={item.product_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "10px", color: "var(--accent-color)", textDecoration: "none", display: "flex", alignItems: "center", gap: "2px" }}>
+                                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                    Link
+                                  </a>
+                                )}
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  await fetch(`/shopping/wishlist/${item.id}`, { method: "DELETE", headers: authHeaders() });
+                                  setWishlist((prev) => prev.filter((w) => w.id !== item.id));
+                                }}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: "2px" }}
+                              >
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -3099,6 +3109,42 @@ export function TryOnStudio() {
           </span>
         </button>
       </div>
+      {/* Wishlist save modal */}
+      {wishlistModalResult && (
+        <WishlistSaveModal
+          uploading={wishlistSaving}
+          onCancel={() => setWishlistModalResult(null)}
+          onSave={async (data: WishlistSaveData) => {
+            if (!wishlistModalResult) return;
+            setWishlistSaving(true);
+            try {
+              const res = await fetch("/shopping/wishlist", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify({
+                  preview_url: wishlistModalResult.image,
+                  clothing_image_url: wishlistModalResult.clothingImage,
+                  source: data.source,
+                  product_url: data.product_url || null,
+                  tag_photo_url: data.tag_photo_url || null,
+                  description: data.description || null,
+                }),
+              });
+              if (!res.ok) throw new Error();
+              const created = await res.json();
+              setWishlist((prev) => [created, ...prev]);
+              setShoppingResults((prev) => prev.map((r) => r.id === wishlistModalResult.id ? { ...r, savedToWishlist: true } : r));
+              setWishlistModalResult(null);
+              showToast("♥ Saved to wishlist");
+            } catch {
+              showToast("❌ Failed to save");
+            } finally {
+              setWishlistSaving(false);
+            }
+          }}
+        />
+      )}
+
       {/* Compare slider modal */}
       {showCompareSlider && compareSelection.length === 2 && (() => {
         const imgA = shoppingResults.find((r) => r.id === compareSelection[0])?.image ?? "";

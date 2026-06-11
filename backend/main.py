@@ -24,6 +24,10 @@ def _run_migrations():
     from sqlalchemy import text
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS tryon_body_photo_url VARCHAR"))
+        conn.execute(text("ALTER TABLE wishlist_items ADD COLUMN IF NOT EXISTS source VARCHAR(30)"))
+        conn.execute(text("ALTER TABLE wishlist_items ADD COLUMN IF NOT EXISTS product_url TEXT"))
+        conn.execute(text("ALTER TABLE wishlist_items ADD COLUMN IF NOT EXISTS tag_photo_url TEXT"))
+        conn.execute(text("ALTER TABLE wishlist_items ADD COLUMN IF NOT EXISTS description TEXT"))
         conn.commit()
 
 try:

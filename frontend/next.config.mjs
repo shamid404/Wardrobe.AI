@@ -30,6 +30,7 @@ const nextConfig = {
       { source: "/body-photo", destination: `${BACKEND_URL}/body-photo` },
       { source: "/shopping/wishlist", destination: `${BACKEND_URL}/shopping/wishlist` },
       { source: "/shopping/wishlist/:path*", destination: `${BACKEND_URL}/shopping/wishlist/:path*` },
+      { source: "/shopping/upload-image", destination: `${BACKEND_URL}/shopping/upload-image` },
     ];
   },
 };

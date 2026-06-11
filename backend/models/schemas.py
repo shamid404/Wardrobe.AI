@@ -138,6 +138,10 @@ class VirtualTryOnRequest(BaseModel):
 class WishlistItemCreate(BaseModel):
     preview_url: Optional[str] = None
     clothing_image_url: Optional[str] = None
+    source: Optional[str] = None
+    product_url: Optional[str] = None
+    tag_photo_url: Optional[str] = None
+    description: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -145,5 +149,9 @@ class WishlistItemOut(BaseModel):
     id: str
     preview_url: Optional[str] = None
     clothing_image_url: Optional[str] = None
+    source: Optional[str] = None
+    product_url: Optional[str] = None
+    tag_photo_url: Optional[str] = None
+    description: Optional[str] = None
     notes: Optional[str] = None
     created_at: str
