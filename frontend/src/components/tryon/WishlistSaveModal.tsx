@@ -86,10 +86,11 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
 
   React.useEffect(() => {
     if (!geminiEnabled || !clothingImageBase64 || initialData?.description) return;
+    const token = localStorage.getItem("token");
     setAnalyzing(true);
     fetch("/shopping/analyze-clothing", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ image_base64: clothingImageBase64 }),
     })
       .then((r) => r.json())
@@ -109,9 +110,10 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
     reader.onload = async (ev) => {
       const b64 = ev.target?.result as string;
       try {
+        const token = localStorage.getItem("token");
         const res = await fetch("/shopping/upload-image", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: JSON.stringify({ image_base64: b64 }),
         });
         if (res.ok) {
