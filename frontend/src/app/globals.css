@@ -789,7 +789,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .btn-ghost:hover { background: var(--bg-primary); }
 .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-primary { background: var(--brand-primary); color: #fff; font-weight: 600; padding: 10px 24px; }
-.dark .btn-primary { background: var(--brand-primary); color: #fff; }
+.dark .btn-primary { background: var(--accent-color); color: #fff; }
+.dark .btn-primary:hover { background: var(--accent-hover); }
 .btn-primary:hover { background: var(--brand-primary-hover); }
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 

@@ -792,7 +792,7 @@ export function TryOnStudio() {
   // falling back to the raw value if it is not parseable.
   const formatDate = (value: string): string => {
     const d = new Date(value);
-    return isNaN(d.getTime()) ? value : d.toLocaleDateString();
+    return isNaN(d.getTime()) ? value : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
   const handleDeleteAccount = async () => {
@@ -1513,8 +1513,8 @@ export function TryOnStudio() {
                   <div style={{ display: "flex", gap: "14px", overflowX: "auto", paddingBottom: "12px" }}>
                     {weekPlans.map((plan) => {
                       const dateObj = new Date(plan.date + "T00:00:00");
-                      const weekday = dateObj.toLocaleDateString(undefined, { weekday: "short" });
-                      const dayNum = dateObj.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+                      const weekday = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+                      const dayNum = dateObj.toLocaleDateString("en-US", { day: "numeric", month: "short" });
                       const isToday = plan.date === todayStr();
                       const busy = planningDay === plan.date;
                       return (
@@ -2562,7 +2562,7 @@ export function TryOnStudio() {
                             )}
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "4px" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                <span style={{ fontSize: "10px", color: "var(--text-secondary)" }}>{new Date(item.created_at).toLocaleDateString()}</span>
+                                <span style={{ fontSize: "10px", color: "var(--text-secondary)" }}>{new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                                 {item.product_url && (
                                   <a href={item.product_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "10px", color: "var(--accent-color)", textDecoration: "none", display: "flex", alignItems: "center", gap: "2px" }}>
                                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
