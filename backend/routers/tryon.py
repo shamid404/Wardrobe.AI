@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
 from ..db.database import get_db
-from ..db.models import TryOnHistory
+from ..db.models import TryOnHistory, User
 from ..models.schemas import VirtualTryOnRequest
 from ..services.ai_service import generate_virtual_tryon
 from ..services.image_service import upload_to_cloudinary, url_to_data_url
@@ -37,6 +37,8 @@ async def generate_tryon(request: Request, body: VirtualTryOnRequest, user=Depen
             headwear_name=body.headwear_name,
             shoes_name=body.shoes_name,
             accessory_names=accessory_names,
+            generation_mode=body.generation_mode,
+            model_id=body.model_id,
         )
 
         if result["success"]:
@@ -117,5 +119,27 @@ def get_history(user=Depends(get_current_user), db: Session = Depends(get_db)):
 def clear_history(user=Depends(get_current_user), db: Session = Depends(get_db)):
     """Delete all try-on history for the current user."""
     db.query(TryOnHistory).filter(TryOnHistory.user_id == user["id"]).delete()
+    db.commit()
+    return {"deleted": True}
+
+
+@router.post("/body-photo")
+async def save_body_photo(body: dict, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """Upload and persist the user's body photo for try-on (one slot per user)."""
+    image_base64 = body.get("image_base64")
+    if not image_base64:
+        raise HTTPException(status_code=400, detail="image_base64 required")
+    url = upload_to_cloudinary(image_base64)
+    db_user = db.query(User).filter(User.id == user["id"]).first()
+    db_user.tryon_body_photo_url = url
+    db.commit()
+    return {"url": url}
+
+
+@router.delete("/body-photo")
+def delete_body_photo(user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """Clear the user's saved body photo."""
+    db_user = db.query(User).filter(User.id == user["id"]).first()
+    db_user.tryon_body_photo_url = None
     db.commit()
     return {"deleted": True}

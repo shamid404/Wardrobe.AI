@@ -27,6 +27,7 @@ class UserOut(BaseModel):
     name: str
     email: str
     avatar_url: Optional[str] = None
+    tryon_body_photo_url: Optional[str] = None
 
 class Token(BaseModel):
     access_token: str
@@ -130,3 +131,19 @@ class VirtualTryOnRequest(BaseModel):
     headwear_name: Optional[str] = None
     shoes_name: Optional[str] = None
     accessories: Optional[List[AccessoryItem]] = None
+    generation_mode: Literal["studio", "original"] = "studio"
+    model_id: Literal["flux-2-pro", "nano-banana-2"] = "flux-2-pro"
+
+
+class WishlistItemCreate(BaseModel):
+    preview_url: Optional[str] = None
+    clothing_image_url: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class WishlistItemOut(BaseModel):
+    id: str
+    preview_url: Optional[str] = None
+    clothing_image_url: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: str

@@ -4,6 +4,7 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, animate, AnimatePresence } from "framer-motion";
 import { clearAuth, getUser, saveUser, authHeaders } from "@/lib/auth";
+import { ImageCompareSlider } from "./ImageCompareSlider";
 
 type CategoryKey = "top" | "bottom" | "outer" | "headwear" | "shoes" | "accessory";
 
@@ -58,6 +59,11 @@ type SavedOutfit = {
 
 type PlanItem = { item_id: string; name: string; category: string; image_url: string | null };
 type DayPlan = { date: string; occasion: string | null; note: string | null; weather: string | null; items: PlanItem[] };
+
+type ShoppingResult = { id: string; image: string; clothingImage: string; timestamp: Date; savedToWishlist: boolean };
+type WishlistItem = { id: string; preview_url: string | null; clothing_image_url: string | null; notes: string | null; created_at: string };
+type GenerationMode = "studio" | "original";
+type ModelId = "flux-2-pro" | "nano-banana-2";
 
 async function removeBackground(
   imageDataUrl: string,
@@ -225,11 +231,11 @@ export function TryOnStudio() {
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [topAbove, setTopAbove] = useState(true);
   const [tryOnHistory, setTryOnHistory] = useState<TryOnHistoryItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"studio" | "plan" | "history" | "outfits" | "laundry" | "settings">(() => {
+  const [activeTab, setActiveTab] = useState<"studio" | "plan" | "history" | "outfits" | "laundry" | "settings" | "shopping">(() => {
     if (typeof window !== "undefined") {
       const tab = new URLSearchParams(window.location.search).get("tab");
-      const valid = ["studio", "plan", "history", "outfits", "laundry", "settings"];
-      if (tab && valid.includes(tab)) return tab as "studio" | "plan" | "history" | "outfits" | "laundry" | "settings";
+      const valid = ["studio", "plan", "history", "outfits", "laundry", "settings", "shopping"];
+      if (tab && valid.includes(tab)) return tab as "studio" | "plan" | "history" | "outfits" | "laundry" | "settings" | "shopping";
     }
     return "studio";
   });
@@ -274,6 +280,17 @@ export function TryOnStudio() {
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
   const [scoreOpenId, setScoreOpenId] = useState<string | null>(null);
+  // Generation options
+  const [generationMode, setGenerationMode] = useState<GenerationMode>("studio");
+  const [selectedModel, setSelectedModel] = useState<ModelId>("flux-2-pro");
+  // Shopping mode
+  const [shoppingClothingImage, setShoppingClothingImage] = useState<string | null>(null);
+  const [shoppingResults, setShoppingResults] = useState<ShoppingResult[]>([]);
+  const [compareSelection, setCompareSelection] = useState<string[]>([]);
+  const [showCompareSlider, setShowCompareSlider] = useState(false);
+  const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
+  const [shoppingTryOnLoading, setShoppingTryOnLoading] = useState(false);
+  const shoppingFileInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
 
   const askConfirm = (opts: { title: string; message: string; confirmLabel: string; onConfirm: () => void }) =>
@@ -297,7 +314,7 @@ export function TryOnStudio() {
     return () => document.removeEventListener("mousedown", handler);
   }, [avatarMenuOpen]);
 
-  const TAB_ORDER = ["studio", "plan", "history", "outfits", "laundry", "settings"];
+  const TAB_ORDER = ["studio", "plan", "history", "outfits", "laundry", "settings", "shopping"];
   useEffect(() => {
     const prev = TAB_ORDER.indexOf(prevTabRef.current);
     const next = TAB_ORDER.indexOf(activeTab);
@@ -638,6 +655,31 @@ export function TryOnStudio() {
     const user = getUser();
     if (user?.name) setUserName(user.name);
     if (user?.avatar_url) setUserAvatarUrl(user.avatar_url);
+  }, []);
+
+  // Load saved body photo and wishlist on mount
+  useEffect(() => {
+    fetch("/api/auth/me", { headers: authHeaders() })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.tryon_body_photo_url) {
+          fetch(`/proxy-image?url=${encodeURIComponent(data.tryon_body_photo_url)}`, { headers: authHeaders() })
+            .then((r) => r.ok ? r.blob() : null)
+            .then((blob) => {
+              if (!blob) return;
+              const reader = new FileReader();
+              reader.onload = (ev) => { if (typeof ev.target?.result === "string") setAvatarImage(ev.target.result); };
+              reader.readAsDataURL(blob);
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+
+    fetch("/shopping/wishlist", { headers: authHeaders() })
+      .then((r) => r.ok ? r.json() : [])
+      .then(setWishlist)
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1012,6 +1054,8 @@ export function TryOnStudio() {
         accessories: selected.accessories.map((a) => ({
           name: a.color ? `${a.color.toLowerCase()} accessory` : "accessory",
         })),
+        generation_mode: generationMode,
+        model_id: selectedModel,
       };
 
       const response = await fetch("/generate-tryon", {
@@ -1078,6 +1122,9 @@ export function TryOnStudio() {
           </a>
           <a href="#" className={activeTab === "settings" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("settings"); }}>
             Settings
+          </a>
+          <a href="#" className={activeTab === "shopping" ? "active" : ""} onClick={(e) => { e.preventDefault(); setActiveTab("shopping"); }} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            🛍 Shopping
           </a>
         </div>
         <div className="header-user">
@@ -2035,6 +2082,253 @@ export function TryOnStudio() {
               </div>
             </div>
           ))}
+
+          {/* ── SHOPPING MODE TAB ── */}
+          {activeTab === "shopping" && (
+            <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "24px" }}>
+              <input ref={shoppingFileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => { if (typeof ev.target?.result === "string") setShoppingClothingImage(ev.target.result); };
+                reader.readAsDataURL(file);
+                if (shoppingFileInputRef.current) shoppingFileInputRef.current.value = "";
+              }} />
+
+              <div style={{ maxWidth: "960px", margin: "0 auto" }}>
+                {/* Header */}
+                <div style={{ marginBottom: "24px" }}>
+                  <div className="panel-title" style={{ marginBottom: "4px", display: "flex", alignItems: "center", gap: "10px" }}>
+                    🛍 Shopping Mode
+                  </div>
+                  <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                    Upload a photo of clothing from a store and see how it looks on you.
+                  </p>
+                </div>
+
+                {/* Upload row */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "20px" }}>
+                  {/* Body photo */}
+                  <div>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "8px", letterSpacing: "0.04em" }}>YOUR PHOTO</div>
+                    {avatarImage ? (
+                      <div style={{ position: "relative", borderRadius: "var(--radius-md)", overflow: "hidden", border: "1px solid var(--border-subtle)", aspectRatio: "3/4" }}>
+                        <img src={avatarImage} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="body" />
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "8px", background: "linear-gradient(transparent, rgba(20,14,10,0.7))", display: "flex", justifyContent: "flex-end" }}>
+                          <button onClick={() => { fileInputRef.current?.click(); }} style={{ fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "6px", background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Change</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button className="upload-btn" onClick={() => fileInputRef.current?.click()} style={{ aspectRatio: "3/4", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <span style={{ fontSize: "12px" }}>Upload body photo</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Clothing photo */}
+                  <div>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "8px", letterSpacing: "0.04em" }}>CLOTHING PHOTO</div>
+                    {shoppingClothingImage ? (
+                      <div style={{ position: "relative", borderRadius: "var(--radius-md)", overflow: "hidden", border: "1px solid var(--border-subtle)", aspectRatio: "3/4" }}>
+                        <img src={shoppingClothingImage} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="clothing" />
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "8px", background: "linear-gradient(transparent, rgba(20,14,10,0.7))", display: "flex", justifyContent: "flex-end" }}>
+                          <button onClick={() => shoppingFileInputRef.current?.click()} style={{ fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "6px", background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Change</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button className="upload-btn" onClick={() => shoppingFileInputRef.current?.click()} style={{ aspectRatio: "3/4", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+                        <span style={{ fontSize: "12px" }}>Photo from store</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Generate button */}
+                <button
+                  className="btn btn-primary"
+                  disabled={!avatarImage || !shoppingClothingImage || shoppingTryOnLoading}
+                  onClick={async () => {
+                    if (!avatarImage || !shoppingClothingImage) return;
+                    setShoppingTryOnLoading(true);
+                    showToast("🔄 Generating try-on...");
+                    try {
+                      const payload = {
+                        avatar_image_base64: avatarImage,
+                        outfit_collage_base64: shoppingClothingImage,
+                        generation_mode: generationMode,
+                        model_id: selectedModel,
+                      };
+                      const res = await fetch("/generate-tryon", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", ...authHeaders() },
+                        body: JSON.stringify(payload),
+                      });
+                      if (redirectIfUnauthorized(res.status)) return;
+                      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                      const result = await res.json();
+                      if (result.preview_url) {
+                        const img = result.preview_image_data_url || result.preview_url;
+                        setShoppingResults((prev) => [
+                          { id: `shop_${Date.now()}`, image: img, clothingImage: shoppingClothingImage, timestamp: new Date(), savedToWishlist: false },
+                          ...prev,
+                        ]);
+                        showToast("✓ Try-on generated!");
+                      } else {
+                        throw new Error("No preview URL");
+                      }
+                    } catch {
+                      showToast("❌ Generation failed");
+                    } finally {
+                      setShoppingTryOnLoading(false);
+                    }
+                  }}
+                  style={{ width: "100%", marginBottom: "24px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+                >
+                  {shoppingTryOnLoading
+                    ? <><svg style={{ animation: "spin 0.8s linear infinite" }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>Generating…</>
+                    : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>Generate Try-On</>
+                  }
+                </button>
+
+                {/* Compare button */}
+                {compareSelection.length === 2 && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => setShowCompareSlider(true)}
+                    style={{ width: "100%", marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 3H3"/><path d="M21 21H3"/><path d="M3 12h18"/><path d="M8 7l-5 5 5 5"/><path d="M16 7l5 5-5 5"/></svg>
+                    Compare selected
+                  </button>
+                )}
+
+                {/* Results grid */}
+                {shoppingResults.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "12px", letterSpacing: "0.04em" }}>
+                      RESULTS — select 2 to compare
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "16px" }}>
+                      {shoppingResults.map((result) => {
+                        const isSelected = compareSelection.includes(result.id);
+                        return (
+                          <div
+                            key={result.id}
+                            style={{
+                              border: `2px solid ${isSelected ? "var(--accent-color)" : "var(--border-subtle)"}`,
+                              borderRadius: "var(--radius-lg)", overflow: "hidden",
+                              background: "var(--bg-surface)",
+                              boxShadow: isSelected ? "0 0 0 3px rgba(200,130,109,0.15)" : "var(--shadow-card)",
+                              transition: "all 0.2s",
+                            }}
+                          >
+                            <div style={{ position: "relative", aspectRatio: "3/4", overflow: "hidden", background: "var(--bg-primary)", cursor: "pointer" }}
+                              onClick={() => setCompareSelection((prev) => {
+                                if (prev.includes(result.id)) return prev.filter((id) => id !== result.id);
+                                if (prev.length >= 2) return [prev[1], result.id];
+                                return [...prev, result.id];
+                              })}
+                            >
+                              <img src={result.image} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="try-on result" />
+                              {isSelected && (
+                                <div style={{ position: "absolute", top: "8px", right: "8px", width: "24px", height: "24px", borderRadius: "50%", background: "var(--accent-color)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ padding: "10px 12px 12px" }}>
+                              <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "8px" }}>
+                                {result.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                {result.savedToWishlist && <span style={{ marginLeft: "6px", color: "var(--accent-color)" }}>♥ Saved</span>}
+                              </div>
+                              <div style={{ display: "flex", gap: "6px" }}>
+                                <button
+                                  className="btn btn-ghost"
+                                  disabled={result.savedToWishlist}
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch("/shopping/wishlist", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json", ...authHeaders() },
+                                        body: JSON.stringify({ preview_url: result.image, clothing_image_url: result.clothingImage }),
+                                      });
+                                      if (!res.ok) throw new Error();
+                                      const created = await res.json();
+                                      setWishlist((prev) => [created, ...prev]);
+                                      setShoppingResults((prev) => prev.map((r) => r.id === result.id ? { ...r, savedToWishlist: true } : r));
+                                      showToast("♥ Saved to wishlist");
+                                    } catch {
+                                      showToast("❌ Failed to save");
+                                    }
+                                  }}
+                                  style={{ flex: 1, fontSize: "11px", padding: "5px 0" }}
+                                >
+                                  {result.savedToWishlist ? "Saved ♥" : "Wishlist"}
+                                </button>
+                                <button
+                                  className="btn btn-ghost"
+                                  onClick={() => downloadImage(result.image)}
+                                  style={{ fontSize: "11px", padding: "5px 8px" }}
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                </button>
+                                <button
+                                  className="btn btn-ghost"
+                                  onClick={() => {
+                                    setShoppingResults((prev) => prev.filter((r) => r.id !== result.id));
+                                    setCompareSelection((prev) => prev.filter((id) => id !== result.id));
+                                  }}
+                                  style={{ fontSize: "11px", padding: "5px 8px" }}
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Wishlist section */}
+                {wishlist.length > 0 && (
+                  <div style={{ marginTop: "32px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "12px", letterSpacing: "0.04em" }}>
+                      WISHLIST ({wishlist.length})
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "12px" }}>
+                      {wishlist.map((item) => (
+                        <div key={item.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", overflow: "hidden", background: "var(--bg-surface)", boxShadow: "var(--shadow-card)" }}>
+                          {item.preview_url && (
+                            <div style={{ aspectRatio: "3/4", overflow: "hidden", background: "var(--bg-primary)" }}>
+                              <img src={item.preview_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="wishlist item" />
+                            </div>
+                          )}
+                          <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <span style={{ fontSize: "10px", color: "var(--text-secondary)" }}>
+                              {new Date(item.created_at).toLocaleDateString()}
+                            </span>
+                            <button
+                              onClick={async () => {
+                                await fetch(`/shopping/wishlist/${item.id}`, { method: "DELETE", headers: authHeaders() });
+                                setWishlist((prev) => prev.filter((w) => w.id !== item.id));
+                              }}
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: "2px" }}
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           </div>
         </div>
       </div>
@@ -2046,7 +2340,10 @@ export function TryOnStudio() {
             {avatarImage ? (
               <div style={{ marginBottom: "16px" }}>
                 <img src={avatarImage} style={{ width: "100%", borderRadius: "8px", marginBottom: "8px" }} />
-                <button className="btn btn-ghost" onClick={() => setAvatarImage(null)} style={{ width: "100%" }}>
+                <button className="btn btn-ghost" onClick={() => {
+                  setAvatarImage(null);
+                  fetch("/body-photo", { method: "DELETE", headers: authHeaders() }).catch(() => {});
+                }} style={{ width: "100%" }}>
                   Remove Photo
                 </button>
               </div>
@@ -2072,12 +2369,67 @@ export function TryOnStudio() {
                   const reader = new FileReader();
                   reader.onload = (ev) => {
                     const result = ev.target?.result;
-                    if (typeof result === "string") setAvatarImage(result);
+                    if (typeof result === "string") {
+                      setAvatarImage(result);
+                      // Auto-save to server (fire-and-forget)
+                      fetch("/body-photo", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", ...authHeaders() },
+                        body: JSON.stringify({ image_base64: result }),
+                      }).catch(() => {});
+                    }
                   };
                   reader.readAsDataURL(file);
                 }
               }}
             />
+          </div>
+
+          {/* Generation options */}
+          <div style={{ marginBottom: "16px" }}>
+            <div className="panel-title" style={{ marginBottom: "8px" }}>Generation</div>
+            {/* Background mode */}
+            <div style={{ marginBottom: "8px" }}>
+              <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 600, marginBottom: "5px", letterSpacing: "0.04em" }}>BACKGROUND</div>
+              <div style={{ display: "flex", gap: "6px" }}>
+                {(["studio", "original"] as GenerationMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setGenerationMode(mode)}
+                    style={{
+                      flex: 1, padding: "6px 0", borderRadius: "8px", fontSize: "11px", fontWeight: 600,
+                      cursor: "pointer", fontFamily: "inherit", transition: "all 0.18s",
+                      border: `1.5px solid ${generationMode === mode ? "var(--accent-color)" : "var(--border-subtle)"}`,
+                      background: generationMode === mode ? "rgba(200,130,109,0.1)" : "transparent",
+                      color: generationMode === mode ? "var(--accent-color)" : "var(--text-secondary)",
+                    }}
+                  >
+                    {mode === "studio" ? "Studio" : "Original"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Model */}
+            <div>
+              <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 600, marginBottom: "5px", letterSpacing: "0.04em" }}>MODEL</div>
+              <div style={{ display: "flex", gap: "6px" }}>
+                {(["flux-2-pro", "nano-banana-2"] as ModelId[]).map((model) => (
+                  <button
+                    key={model}
+                    onClick={() => setSelectedModel(model)}
+                    style={{
+                      flex: 1, padding: "6px 4px", borderRadius: "8px", fontSize: "10px", fontWeight: 600,
+                      cursor: "pointer", fontFamily: "inherit", transition: "all 0.18s",
+                      border: `1.5px solid ${selectedModel === model ? "var(--accent-color)" : "var(--border-subtle)"}`,
+                      background: selectedModel === model ? "rgba(200,130,109,0.1)" : "transparent",
+                      color: selectedModel === model ? "var(--accent-color)" : "var(--text-secondary)",
+                    }}
+                  >
+                    {model === "flux-2-pro" ? "Flux 2 Pro" : "Nano Banana"}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {selectedOutfit.length > 0 && (
@@ -2724,6 +3076,13 @@ export function TryOnStudio() {
           </span>
         </button>
       </div>
+      {/* Compare slider modal */}
+      {showCompareSlider && compareSelection.length === 2 && (() => {
+        const imgA = shoppingResults.find((r) => r.id === compareSelection[0])?.image ?? "";
+        const imgB = shoppingResults.find((r) => r.id === compareSelection[1])?.image ?? "";
+        return <ImageCompareSlider imageA={imgA} imageB={imgB} onClose={() => setShowCompareSlider(false)} />;
+      })()}
+
       {deletingOut && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 99999,

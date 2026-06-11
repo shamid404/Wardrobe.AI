@@ -13,11 +13,23 @@ from slowapi.errors import RateLimitExceeded
 from .config import ENVIRONMENT, ALLOWED_ORIGINS
 from .auth import get_current_user
 
-from .routers import wardrobe, tryon, avatar, auth_router, assistant, outfits, chat_sessions, planner, feedback
+from .routers import wardrobe, tryon, avatar, auth_router, assistant, outfits, chat_sessions, planner, feedback, shopping
 from .db.database import engine
 from .db import models
 
 models.Base.metadata.create_all(bind=engine)
+
+# Run additive migrations for columns added after initial schema creation
+def _run_migrations():
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS tryon_body_photo_url VARCHAR"))
+        conn.commit()
+
+try:
+    _run_migrations()
+except Exception as _mig_err:
+    print(f"[migration] warning: {_mig_err}")
 
 
 limiter = Limiter(key_func=get_remote_address)
@@ -66,6 +78,7 @@ app.include_router(outfits.router)
 app.include_router(chat_sessions.router)
 app.include_router(planner.router)
 app.include_router(feedback.router)
+app.include_router(shopping.router)
 
 
 @app.get("/health")

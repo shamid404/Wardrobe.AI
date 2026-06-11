@@ -82,6 +82,10 @@ def score_outfit(outfit_id: str, user=Depends(get_current_user), db: Session = D
     if not outfit:
         raise HTTPException(status_code=404, detail="Outfit not found")
 
+    # Return cached scores if available
+    if outfit.fit_score is not None and outfit.style_score is not None and outfit.color_harmony is not None:
+        return {"fit_score": outfit.fit_score, "style_score": outfit.style_score, "color_harmony": outfit.color_harmony}
+
     items = [oi.wardrobe_item for oi in outfit.items if oi.wardrobe_item]
     if not items:
         return {"fit_score": 70, "style_score": 70, "color_harmony": 70}
@@ -102,6 +106,7 @@ def score_outfit(outfit_id: str, user=Depends(get_current_user), db: Session = D
     ml_is_fallback = all(ml_result.get(k) == 75 for k in ("fit_score", "style_score", "color_harmony"))
 
     if not ml_is_fallback:
+        _save_scores(outfit, ml_result, db)
         return ml_result
 
     # Secondary: Gemini (only when ML models aren't loaded / failed)
@@ -125,13 +130,22 @@ color_harmony: how well the colors complement each other"""
     )
 
     if result and all(k in result for k in ("fit_score", "style_score", "color_harmony")):
-        return {
+        scores = {
             "fit_score":     max(0, min(100, int(result["fit_score"]))),
             "style_score":   max(0, min(100, int(result["style_score"]))),
             "color_harmony": max(0, min(100, int(result["color_harmony"]))),
         }
+        _save_scores(outfit, scores, db)
+        return scores
 
     return ml_result  # 75/75/75 neutral fallback
+
+
+def _save_scores(outfit: Outfit, scores: dict, db: Session) -> None:
+    outfit.fit_score = scores["fit_score"]
+    outfit.style_score = scores["style_score"]
+    outfit.color_harmony = scores["color_harmony"]
+    db.commit()
 
 
 @router.delete("/{outfit_id}", status_code=status.HTTP_204_NO_CONTENT)

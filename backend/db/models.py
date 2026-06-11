@@ -16,6 +16,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     avatar_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    tryon_body_photo_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     wardrobe_items: Mapped[list["WardrobeItem"]] = relationship("WardrobeItem", back_populates="user", cascade="all, delete-orphan")
@@ -46,6 +47,9 @@ class Outfit(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     ai_suggested: Mapped[bool] = mapped_column(default=False)
+    fit_score: Mapped[Optional[int]] = mapped_column(nullable=True)
+    style_score: Mapped[Optional[int]] = mapped_column(nullable=True)
+    color_harmony: Mapped[Optional[int]] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     items: Mapped[list["OutfitItem"]] = relationship("OutfitItem", back_populates="outfit", cascade="all, delete-orphan")
@@ -118,4 +122,15 @@ class TryOnHistory(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     preview_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WishlistItem(Base):
+    __tablename__ = "wishlist_items"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: f"wish_{uuid.uuid4().hex[:10]}")
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    preview_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    clothing_image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
