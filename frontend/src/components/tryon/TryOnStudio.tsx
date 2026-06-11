@@ -2625,9 +2625,14 @@ export function TryOnStudio() {
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "12px" }}>
                       {wishlist.map((item) => (
                         <div key={item.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", overflow: "hidden", background: "var(--bg-surface)", boxShadow: "var(--shadow-card)" }}>
-                          {item.preview_url && (
+                          {(item.preview_url || item.clothing_image_url) && (
                             <div style={{ position: "relative", aspectRatio: "9/16", overflow: "hidden", background: "var(--bg-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <img src={item.preview_url} style={{ width: "100%", height: "100%", objectFit: "contain" }} alt="wishlist item" />
+                              <img src={item.preview_url || item.clothing_image_url!} style={{ width: "100%", height: "100%", objectFit: "contain" }} alt="wishlist item" />
+                              {item.clothing_image_url && item.preview_url && (
+                                <div style={{ position: "absolute", bottom: "6px", right: "6px", width: "44px", height: "44px", borderRadius: "6px", overflow: "hidden", border: "1.5px solid rgba(255,255,255,0.3)", boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>
+                                  <img src={item.clothing_image_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="clothing" />
+                                </div>
+                              )}
                               {item.source && (() => {
                                 const meta = getSourceMeta(item.source);
                                 return meta ? (

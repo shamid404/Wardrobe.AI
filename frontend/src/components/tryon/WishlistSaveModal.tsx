@@ -84,13 +84,17 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
   const [analyzing, setAnalyzing] = useState(false);
   const tagInputRef = useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => {
-    if (!geminiEnabled || !clothingImageBase64 || initialData?.description) return;
-    const token = localStorage.getItem("token");
+  const getAuthHeader = (): Record<string, string> => {
+    const token = localStorage.getItem("wardrobe_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  const analyzeClothing = React.useCallback(() => {
+    if (!clothingImageBase64) return;
     setAnalyzing(true);
     fetch("/shopping/analyze-clothing", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
       body: JSON.stringify({ image_base64: clothingImageBase64 }),
     })
       .then((r) => r.json())
@@ -100,6 +104,11 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
       })
       .catch(() => {})
       .finally(() => setAnalyzing(false));
+  }, [clothingImageBase64]);
+
+  React.useEffect(() => {
+    if (!geminiEnabled || !clothingImageBase64 || initialData?.description) return;
+    analyzeClothing();
   }, []);
 
   const handleTagPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,10 +119,9 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
     reader.onload = async (ev) => {
       const b64 = ev.target?.result as string;
       try {
-        const token = localStorage.getItem("token");
         const res = await fetch("/shopping/upload-image", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          headers: { "Content-Type": "application/json", ...getAuthHeader() },
           body: JSON.stringify({ image_base64: b64 }),
         });
         if (res.ok) {
@@ -225,7 +233,14 @@ export function WishlistSaveModal({ onSave, onCancel, uploading, geminiEnabled, 
         <div>
           <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px", letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: "6px" }}>
             DESCRIPTION (OPTIONAL)
-            {analyzing && <span style={{ fontSize: "10px", color: "var(--accent-color)", display: "flex", alignItems: "center", gap: "4px" }}><svg style={{ animation: "spin 0.8s linear infinite" }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>AI analyzing…</span>}
+            {analyzing
+              ? <span style={{ fontSize: "10px", color: "var(--accent-color)", display: "flex", alignItems: "center", gap: "4px" }}><svg style={{ animation: "spin 0.8s linear infinite" }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>AI analyzing…</span>
+              : clothingImageBase64 && geminiEnabled && (
+                <button onClick={analyzeClothing} title="Regenerate AI description" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--accent-color)", padding: "1px", display: "flex", alignItems: "center" }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                </button>
+              )
+            }
           </div>
           <textarea
             placeholder="e.g. white linen shirt, size M, ~4000₸"
