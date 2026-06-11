@@ -2097,7 +2097,7 @@ export function TryOnStudio() {
 
               <div style={{ maxWidth: "960px", margin: "0 auto" }}>
                 {/* Header */}
-                <div style={{ marginBottom: "24px" }}>
+                <div style={{ marginBottom: "20px" }}>
                   <div className="panel-title" style={{ marginBottom: "4px", display: "flex", alignItems: "center", gap: "10px" }}>
                     🛍 Shopping Mode
                   </div>
@@ -2106,8 +2106,32 @@ export function TryOnStudio() {
                   </p>
                 </div>
 
-                {/* Upload row */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "20px" }}>
+                {/* Generation options — inline (right panel is hidden in this tab) */}
+                <div style={{ display: "flex", gap: "20px", marginBottom: "20px", flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: "160px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px", letterSpacing: "0.04em" }}>BACKGROUND</div>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      {(["studio", "original"] as GenerationMode[]).map((mode) => (
+                        <button key={mode} onClick={() => setGenerationMode(mode)} style={{ flex: 1, padding: "7px 0", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.18s", border: `1.5px solid ${generationMode === mode ? "var(--accent-color)" : "var(--border-subtle)"}`, background: generationMode === mode ? "rgba(200,130,109,0.1)" : "transparent", color: generationMode === mode ? "var(--accent-color)" : "var(--text-secondary)" }}>
+                          {mode === "studio" ? "Studio" : "Original"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: "160px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px", letterSpacing: "0.04em" }}>MODEL</div>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      {(["flux-2-pro", "nano-banana-2"] as ModelId[]).map((model) => (
+                        <button key={model} onClick={() => setSelectedModel(model)} style={{ flex: 1, padding: "7px 4px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.18s", border: `1.5px solid ${selectedModel === model ? "var(--accent-color)" : "var(--border-subtle)"}`, background: selectedModel === model ? "rgba(200,130,109,0.1)" : "transparent", color: selectedModel === model ? "var(--accent-color)" : "var(--text-secondary)" }}>
+                          {model === "flux-2-pro" ? "Flux 2 Pro" : "Nano Banana"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Upload row — responsive: 2 col on wide, 1 col on narrow */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "16px", marginBottom: "20px" }}>
                   {/* Body photo */}
                   <div>
                     <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "8px", letterSpacing: "0.04em" }}>YOUR PHOTO</div>
@@ -2224,14 +2248,14 @@ export function TryOnStudio() {
                               transition: "all 0.2s",
                             }}
                           >
-                            <div style={{ position: "relative", aspectRatio: "3/4", overflow: "hidden", background: "var(--bg-primary)", cursor: "pointer" }}
+                            <div style={{ position: "relative", aspectRatio: "9/16", overflow: "hidden", background: "var(--bg-primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                               onClick={() => setCompareSelection((prev) => {
                                 if (prev.includes(result.id)) return prev.filter((id) => id !== result.id);
                                 if (prev.length >= 2) return [prev[1], result.id];
                                 return [...prev, result.id];
                               })}
                             >
-                              <img src={result.image} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="try-on result" />
+                              <img src={result.image} style={{ width: "100%", height: "100%", objectFit: "contain" }} alt="try-on result" />
                               {isSelected && (
                                 <div style={{ position: "absolute", top: "8px", right: "8px", width: "24px", height: "24px", borderRadius: "50%", background: "var(--accent-color)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -2303,8 +2327,8 @@ export function TryOnStudio() {
                       {wishlist.map((item) => (
                         <div key={item.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", overflow: "hidden", background: "var(--bg-surface)", boxShadow: "var(--shadow-card)" }}>
                           {item.preview_url && (
-                            <div style={{ aspectRatio: "3/4", overflow: "hidden", background: "var(--bg-primary)" }}>
-                              <img src={item.preview_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="wishlist item" />
+                            <div style={{ aspectRatio: "9/16", overflow: "hidden", background: "var(--bg-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <img src={item.preview_url} style={{ width: "100%", height: "100%", objectFit: "contain" }} alt="wishlist item" />
                             </div>
                           )}
                           <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>

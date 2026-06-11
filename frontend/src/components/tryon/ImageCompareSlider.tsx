@@ -62,13 +62,15 @@ export function ImageCompareSlider({ imageA, imageB, onClose }: Props) {
         onTouchMove={onTouchMove}
         style={{
           position: "relative",
-          width: "min(520px, 90vw)",
-          aspectRatio: "3/4",
+          width: "min(360px, 90vw)",
+          maxHeight: "80vh",
+          aspectRatio: "9/16",
           borderRadius: "16px",
           overflow: "hidden",
           userSelect: "none",
           cursor: "col-resize",
           boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          background: "#1a1210",
         }}
       >
         {/* Image B — right (full width, clipped on the left) */}
@@ -76,7 +78,7 @@ export function ImageCompareSlider({ imageA, imageB, onClose }: Props) {
           src={imageB}
           alt="Look B"
           draggable={false}
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", display: "block" }}
         />
 
         {/* Image A — left (clipped on the right by slider) */}
@@ -90,7 +92,7 @@ export function ImageCompareSlider({ imageA, imageB, onClose }: Props) {
             src={imageA}
             alt="Look A"
             draggable={false}
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
           />
         </div>
 
