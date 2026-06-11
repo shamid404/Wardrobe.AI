@@ -35,31 +35,19 @@ const SOURCES: { id: WishlistSource; label: string; color: string; icon: React.R
     id: "wildberries",
     label: "Wildberries",
     color: "#8B00FF",
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-      </svg>
-    ),
+    icon: <img src="/icons/wildberries-sign-logo.svg" width="16" height="16" style={{ objectFit: "contain" }} alt="Wildberries" />,
   },
   {
     id: "kaspi",
     label: "Kaspi",
     color: "#FF4B3A",
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-      </svg>
-    ),
+    icon: <img src="/icons/kaspikz_128x128.svg" width="16" height="16" style={{ objectFit: "contain" }} alt="Kaspi" />,
   },
   {
     id: "pinduoduo",
     label: "Temu / PDD",
     color: "#FF6900",
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M19 7h-1V6a3 3 0 00-6 0v1H8a1 1 0 00-1 1v11a3 3 0 003 3h6a3 3 0 003-3V8a1 1 0 00-1-1zm-7-1a1 1 0 012 0v1h-2V6zm6 13a1 1 0 01-1 1h-6a1 1 0 01-1-1V9h8v10z"/>
-      </svg>
-    ),
+    icon: <img src="/icons/pinduoduo-seeklogo.svg" width="16" height="16" style={{ objectFit: "contain" }} alt="Pinduoduo" />,
   },
   {
     id: "store",
