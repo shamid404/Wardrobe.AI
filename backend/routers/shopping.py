@@ -89,7 +89,7 @@ def _resolve_base64(body: ImageUploadBody) -> str:
     if body.image_base64:
         return body.image_base64
     if body.image_url:
-        if body.image_url.startswith("data:"):
+        if body.image_url.startswith("data:") or not body.image_url.startswith("http"):
             return body.image_url
         import base64 as _b64
         import httpx
