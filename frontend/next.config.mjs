@@ -28,8 +28,8 @@ const nextConfig = {
       { source: "/api/outfits/:path*", destination: `${BACKEND_URL}/outfits/:path*` },
       { source: "/api/chat/:path*", destination: `${BACKEND_URL}/chat/:path*` },
       { source: "/body-photo", destination: `${BACKEND_URL}/body-photo` },
-      { source: "/shopping/wishlist/:path*", destination: `${BACKEND_URL}/shopping/wishlist/:path*` },
       { source: "/shopping/wishlist", destination: `${BACKEND_URL}/shopping/wishlist` },
+      { source: "/shopping/wishlist/:path*", destination: `${BACKEND_URL}/shopping/wishlist/:path*` },
     ];
   },
 };
