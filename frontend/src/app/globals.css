@@ -1329,8 +1329,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
     padding: 8px 4px;
     border-radius: 10px;
     border: 1px solid var(--border-subtle);
-    background: var(--bg-primary);
-    color: var(--text-primary);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
     font-size: 10px;
     font-weight: 600;
     cursor: pointer;
@@ -1338,11 +1338,22 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
     flex-direction: column;
     align-items: center;
     gap: 3px;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
   }
   .mobile-action-bar button.active {
-    background: var(--brand-primary);
+    background: var(--accent-color);
     color: #fff;
-    border-color: var(--brand-primary);
+    border-color: var(--accent-color);
+  }
+  .dark .mobile-action-bar button {
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    border-color: var(--border-subtle);
+  }
+  .dark .mobile-action-bar button.active {
+    background: var(--accent-color);
+    color: #fff;
+    border-color: var(--accent-color);
   }
 
   /* Floating FAB stack — above action bar, hidden on non-studio tabs */

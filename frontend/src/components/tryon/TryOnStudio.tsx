@@ -1727,21 +1727,6 @@ export function TryOnStudio() {
                       ))}
                     </div>
                   </div>
-                  {/* Language */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>{tl("settings_language")}</span>
-                    <div style={{ display: "flex", borderRadius: "8px", border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
-                      {(["en", "ru"] as const).map((l) => (
-                        <button
-                          key={l}
-                          onClick={() => switchLang(l)}
-                          style={{ padding: "6px 16px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s", background: lang === l ? "var(--accent-color)" : "transparent", color: lang === l ? "#fff" : "var(--text-secondary)" }}
-                        >
-                          {l === "en" ? "EN" : "RU"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </div>}
 
@@ -2301,7 +2286,7 @@ export function TryOnStudio() {
                         zIndex: topAbove ? 2 : 1,
                         cursor: selected.outer ? "pointer" : "default",
                         transform: selected.outer ? (topAbove ? "scale(1) translate(0px, 0px)" : "scale(0.96) translate(6px, 10px)") : undefined,
-                        opacity: selected.outer ? (topAbove ? 1 : 0.72) : undefined,
+                        opacity: selected.outer ? (topAbove ? 1 : 0.88) : undefined,
                         boxShadow: selected.outer ? (topAbove ? "0 8px 28px rgba(0,0,0,0.18)" : "none") : undefined,
                         transition: "transform 0.55s cubic-bezier(0.34,1.1,0.64,1), opacity 0.4s ease, box-shadow 0.4s ease",
                       }}
@@ -2327,9 +2312,9 @@ export function TryOnStudio() {
                         cursor: selected.top ? "pointer" : "default",
                         marginTop: selected.top ? "-192px" : undefined,
                         marginLeft: selected.top ? "20px" : undefined,
-                        transform: !topAbove ? "scale(1) translate(0px, 0px)" : "scale(0.96) translate(-6px, 10px)",
-                        opacity: !topAbove ? 1 : 0.72,
-                        boxShadow: !topAbove ? "0 8px 28px rgba(0,0,0,0.18)" : "none",
+                        transform: selected.top ? (!topAbove ? "scale(1) translate(0px, 0px)" : "scale(0.96) translate(-6px, 10px)") : undefined,
+                        opacity: selected.top ? (!topAbove ? 1 : 0.88) : undefined,
+                        boxShadow: selected.top ? (!topAbove ? "0 8px 28px rgba(0,0,0,0.18)" : "none") : undefined,
                         transition: "transform 0.55s cubic-bezier(0.34,1.1,0.64,1), opacity 0.4s ease, box-shadow 0.4s ease",
                       }}
                       onClick={() => selected.top && setTopAbove((p) => !p)}
