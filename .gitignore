@@ -44,9 +44,14 @@ skills-lock.json
 
 # Docs / generated
 *.md
-!README.md
+!/README.md
 frontend/index.html
+index.html
 !tma/index.html
+
+# Root-level legacy shims (superseded by backend/ package)
+config.py
+main.py
 
 
 DEMO/
